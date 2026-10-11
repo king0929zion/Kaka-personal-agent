@@ -5,10 +5,11 @@ import '../../design/theme.dart';
 import 'organic_avatar.dart';
 
 class AvatarProfile {
-  final int shape, expression, color;
-  const AvatarProfile({this.shape=0,this.expression=0,this.color=-1});
-  AvatarProfile copyWith({int? shape,int? expression,int? color}) =>
-    AvatarProfile(shape:shape??this.shape,expression:expression??this.expression,color:color??this.color);
+  final int shape, expression, color, stateIndex;
+  const AvatarProfile({this.shape=0,this.expression=0,this.color=-1,this.stateIndex=0});
+  AvatarProfile copyWith({int? shape,int? expression,int? color,int? stateIndex}) =>
+    AvatarProfile(shape:shape??this.shape,expression:expression??this.expression,
+      color:color??this.color,stateIndex:stateIndex??this.stateIndex);
 }
 class AvatarRepository {
   static const _store=FlutterSecureStorage();
@@ -25,11 +26,13 @@ class AvatarRepository {
           _store.read(key:'kaka.avatar.$botId.shape'),
           _store.read(key:'kaka.avatar.$botId.expression'),
           _store.read(key:'kaka.avatar.$botId.color'),
+          _store.read(key:'kaka.avatar.$botId.state'),
         ]);
         final result=AvatarProfile(
           shape:int.tryParse(entries[0]??'')??0,
           expression:int.tryParse(entries[1]??'')??0,
-          color:int.tryParse(entries[2]??'')??-1);
+          color:int.tryParse(entries[2]??'')??-1,
+          stateIndex:int.tryParse(entries[3]??'')??0);
         _cache[botId]=result;
         changed.value++;
         return result;
@@ -48,6 +51,7 @@ class AvatarRepository {
       _store.write(key:'kaka.avatar.$botId.shape',value:'${profile.shape}'),
       _store.write(key:'kaka.avatar.$botId.expression',value:'${profile.expression}'),
       _store.write(key:'kaka.avatar.$botId.color',value:'${profile.color}'),
+      _store.write(key:'kaka.avatar.$botId.state',value:'${profile.stateIndex}'),
     ]);
     _cache[botId]=profile;
     changed.value++;
@@ -82,7 +86,8 @@ class _AgentAvatarState extends State<AgentAvatar> {
         : widget.fallbackColor;
       return OrganicAvatar(size:widget.size,
         shapeIndex:profile.shape,expressionIndex:profile.expression,
-        color:color,working:widget.working);
+        color:color,working:widget.working,
+        stateId:OrganicPresets.states[profile.stateIndex%OrganicPresets.states.length]);
     },
   );
 }

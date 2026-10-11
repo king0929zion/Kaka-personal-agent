@@ -15,7 +15,7 @@ class AvatarEditor extends StatefulWidget {
   State<AvatarEditor> createState()=>_AvatarEditorState();
 }
 class _AvatarEditorState extends State<AvatarEditor> {
-  int shape=0, expression=0, color=0;
+  int shape=0, expression=0, color=0, stateIndex=0;
   @override
   void initState() {super.initState();_restore();}
   Future<void> _restore() async {
@@ -24,12 +24,13 @@ class _AvatarEditorState extends State<AvatarEditor> {
     setState(() {
       shape=profile.shape; expression=profile.expression;
       color=profile.color<0?0:profile.color;
+      stateIndex=profile.stateIndex;
     });
   }
   Future<void> _save() async {
     try{
       await AvatarRepository.save(widget.bot.id,
-        AvatarProfile(shape:shape,expression:expression,color:color));
+        AvatarProfile(shape:shape,expression:expression,color:color,stateIndex:stateIndex));
       if(mounted)kakaNotice(context,'Avatar saved on this device');
     }catch(e){if(mounted)kakaNotice(context,e.toString());}
   }
@@ -51,6 +52,7 @@ class _AvatarEditorState extends State<AvatarEditor> {
           alignment:Alignment.center,
           child:OrganicAvatar(size:190,
             shapeIndex:shape,expressionIndex:expression,
+            stateId:OrganicPresets.states[stateIndex%OrganicPresets.states.length],
             color:OrganicPresets.colors[color%OrganicPresets.colors.length])),
         const SizedBox(height:26),
         Text('Shape',style:Theme.of(context).textTheme.titleLarge),
@@ -73,13 +75,18 @@ class _AvatarEditorState extends State<AvatarEditor> {
                 child:DecoratedBox(decoration:BoxDecoration(shape:BoxShape.circle,
                   color:OrganicPresets.colors[i])))))),
         const SizedBox(height:25),
-        const Text('Animation preview uses organic idle motion. The complete reference timeline is tracked for the next migration stage.',
+        Text('Animation',style:Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height:12),
+        _grid(OrganicPresets.states.length,4,(i)=>OrganicPresets.states[i],
+          stateIndex,(i)=>setState(()=>stateIndex=i),isState:true),
+        const SizedBox(height:17),
+        const Text('Animation states are an initial Flutter implementation. Exact HTML transition timing and eye projection remain under development.',
           style:TextStyle(color:KColors.muted,fontSize:12,height:1.5)),
       ])),
     ])),
   );
 
-  Widget _grid(int count,int columns,String Function(int) label,int active,void Function(int) choose) =>
+  Widget _grid(int count,int columns,String Function(int) label,int active,void Function(int) choose,{bool isState=false}) =>
     GridView.builder(shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),
       itemCount:count,
       gridDelegate:SliverGridDelegateWithFixedCrossAxisCount(
@@ -95,7 +102,8 @@ class _AvatarEditorState extends State<AvatarEditor> {
             OrganicAvatar(size:count>8?33:40,
               shapeIndex:count==8?index:shape,
               expressionIndex:count>8?index:expression,
-              color:index==active?Colors.white:KColors.ink),
+              color:index==active?Colors.white:KColors.ink,
+              stateId:isState?OrganicPresets.states[index]:'idle'),
             const SizedBox(height:5),
             Text(label(index),textAlign:TextAlign.center,maxLines:1,
               overflow:TextOverflow.ellipsis,
