@@ -72,8 +72,7 @@ class _AuthScreenState extends State<AuthScreen> {
               if (!isServer) ...[
                 const SizedBox(height: 20),
                 GestureDetector(onTap: () {
-                  widget.app.state = StartupState.server;
-                  widget.app.notifyListeners();
+                  widget.app.showServerSelection();
                 }, child: const Center(child: Text('Change server',
                   style: TextStyle(color: KColors.muted, fontSize: 14)))),
               ],

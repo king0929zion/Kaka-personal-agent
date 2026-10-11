@@ -131,8 +131,9 @@ class _AvatarPainter extends CustomPainter {
     }
     shape.close();
     canvas.drawPath(shape, Paint()..color=color..isAntiAlias=true);
-    final eyePaint = Paint()..color=color.computeLuminance()<.48 ? Colors.white : KColors.ink
-      ..isAntiAlias=true;
+    final eyePaint = Paint();
+    eyePaint.color = color.computeLuminance() < .48 ? Colors.white : KColors.ink;
+    eyePaint.isAntiAlias = true;
     if (working) {
       for (var i=0;i<3;i++) {
         final pulse=(math.sin(clock*3.3+i*1.3)+1)/2;

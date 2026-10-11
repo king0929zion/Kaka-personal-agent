@@ -142,6 +142,12 @@ class AppController extends ChangeNotifier {
     }
   }
 
+  void showServerSelection() {
+    state = StartupState.server;
+    error = null;
+    notifyListeners();
+  }
+
   Future<void> logout() async {
     ++_epoch;
     await api.signOut();

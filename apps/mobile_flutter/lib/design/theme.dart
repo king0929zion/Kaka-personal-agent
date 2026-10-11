@@ -32,7 +32,7 @@ ThemeData kakaTheme() => ThemeData(
     error: KColors.error,
   ),
   textTheme: const TextTheme(
-    headlineLarge: TextStyle(fontSize: 29, fontWeight: FontWeight.w650, letterSpacing: -1.1, color: KColors.ink),
+    headlineLarge: TextStyle(fontSize: 29, fontWeight: FontWeight.w600, letterSpacing: -1.1, color: KColors.ink),
     headlineMedium: TextStyle(fontSize: 23, fontWeight: FontWeight.w600, letterSpacing: -.6, color: KColors.ink),
     titleLarge: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: KColors.ink),
     bodyLarge: TextStyle(fontSize: 16, height: 1.45, color: KColors.ink),

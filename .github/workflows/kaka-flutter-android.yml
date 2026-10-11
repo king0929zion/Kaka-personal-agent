@@ -1,0 +1,39 @@
+name: Kaka Flutter Android preview
+
+on:
+  push:
+    paths:
+      - 'apps/mobile_flutter/**'
+      - 'docs/FLUTTER_MIGRATION.md'
+      - '.github/workflows/kaka-flutter-android.yml'
+  workflow_dispatch:
+
+jobs:
+  flutter-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: apps/mobile_flutter
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Android scaffold
+        run: bash scripts/bootstrap_android.sh
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
+      - name: Test
+        run: flutter test
+      - name: Build Android debug APK
+        run: flutter build apk --debug
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: kaka-flutter-debug-apk
+          path: apps/mobile_flutter/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error

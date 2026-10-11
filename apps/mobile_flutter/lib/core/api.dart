@@ -154,14 +154,14 @@ class KakaApi {
   }
 
   Future<List<KakaBot>> bots() async {
-    final data = await rpc('spaces/navigation');
+    final data = await rpc('spaces/list');
     final obj = data is Map ? data : const {};
     final list = obj['bots'] is List ? obj['bots'] as List : const [];
     return list.whereType<Map>().map((e) => KakaBot.fromJson(Map<String, dynamic>.from(e))).toList();
   }
 
   Future<KakaThread> thread(String botId) async {
-    final data = await rpc('threads/snapshot', {'botId':botId});
+    final data = await rpc('threads/get', {'botId':botId});
     return KakaThread.fromJson(Map<String, dynamic>.from(data as Map));
   }
 

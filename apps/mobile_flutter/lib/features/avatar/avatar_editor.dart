@@ -100,7 +100,7 @@ class _AvatarEditorState extends State<AvatarEditor> {
       itemCount:count,
       gridDelegate:SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount:columns,crossAxisSpacing:8,mainAxisSpacing:8,
-        childAspectRatio:count>8?.92:1),
+        childAspectRatio:count > 8 ? .92 : 1),
       itemBuilder:(context,index)=>GestureDetector(onTap:()=>choose(index),
         child:Container(
           decoration:BoxDecoration(
