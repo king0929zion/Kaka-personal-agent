@@ -9,6 +9,7 @@ import '../avatar/avatar_settings.dart';
 import '../avatar/avatar_editor.dart';
 import '../thread/thread_screen.dart';
 import '../models/model_settings_screen.dart';
+import '../agents/agent_settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final AppController app;
@@ -155,6 +156,12 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height:14),
               KakaRow(title:'Open chat',icon:LucideIcons.messageCircle,onTap:(){
                 Navigator.pop(context);open(bot);}),
+              KakaRow(title:'Agent settings',icon:LucideIcons.settings2,onTap:(){
+                Navigator.pop(context);
+                Navigator.push(context,MaterialPageRoute<void>(
+                  builder:(_)=>AgentSettingsScreen(api:widget.app.api,bot:bot)))
+                  .then((_){widget.app.refresh();});
+              }),
               KakaRow(title:'Customize avatar',icon:LucideIcons.smile,onTap:(){
                 Navigator.pop(context);
                 Navigator.push(context,MaterialPageRoute<void>(
