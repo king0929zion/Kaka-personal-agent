@@ -31,6 +31,15 @@ class _HomeScreenState extends State<HomeScreen> {
     ),
   ).then((_) => widget.app.refresh());
 
+  void openGroup(KakaGroup group) {
+    final presentation = KakaBot(id:group.id,name:group.name,title:'Group chat',
+      preview:group.preview,color:'#181818',status:'',unread:group.unread,
+      pinned:false,updatedAt:'');
+    Navigator.push(context,MaterialPageRoute<void>(builder:(_)=>
+      ThreadScreen(api:widget.app.api,bot:presentation,group:true)))
+      .then((_){widget.app.refresh();});
+  }
+
   Future<void> createBot() async {
     final name=TextEditingController(), title=TextEditingController(), detail=TextEditingController();
     final result = await kakaSheet<KakaBot>(context, StatefulBuilder(builder:(ctx, rebuild) =>
@@ -53,7 +62,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Navigator.of(ctx).pop(bot);
             }),
         ]),
-      ))));
+      )));
     name.dispose(); title.dispose(); detail.dispose();
     if (result != null && mounted) open(result);
   }
@@ -177,14 +186,13 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(width:8),
               const Icon(LucideIcons.chevronRight,color:KColors.muted,size:17),
             ])),
-          ),
         )),
       if(tab==0&&widget.app.groups.isNotEmpty) ...[
         const Padding(padding:EdgeInsets.fromLTRB(7,18,0,12),
           child:Text('GROUPS',style:TextStyle(fontSize:12,color:KColors.muted))),
         for(final group in widget.app.groups)
           Padding(padding:const EdgeInsets.only(bottom:9),
-            child:GestureDetector(onTap:()=>kakaNotice(context,'Group chat migration is in progress'),
+            child:GestureDetector(onTap:()=>openGroup(group),
               child:Container(padding:const EdgeInsets.all(16),
                 decoration:BoxDecoration(color:KColors.surface,borderRadius:BorderRadius.circular(25)),
                 child:Row(children:[

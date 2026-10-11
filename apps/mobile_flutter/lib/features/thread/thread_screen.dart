@@ -13,13 +13,14 @@ import 'thread_controller.dart';
 class ThreadScreen extends StatefulWidget {
   final KakaApi api;
   final KakaBot bot;
-  const ThreadScreen({super.key, required this.api, required this.bot});
+  final bool group;
+  const ThreadScreen({super.key, required this.api, required this.bot, this.group = false});
   @override
   State<ThreadScreen> createState() => _ThreadScreenState();
 }
 
 class _ThreadScreenState extends State<ThreadScreen> {
-  late final ThreadController thread = ThreadController(widget.api, widget.bot.id);
+  late final ThreadController thread = ThreadController(widget.api, widget.bot.id, group:widget.group);
   final draft = TextEditingController();
   final scroll = ScrollController();
   int lastCount = 0;
@@ -64,7 +65,7 @@ class _ThreadScreenState extends State<ThreadScreen> {
   Future<void> answer(KakaMessage message,String value) async {
     try {
       await widget.api.rpc('threads/answer', {
-        'botId':widget.bot.id,
+        ...(widget.group ? {'groupId':widget.bot.id} : {'botId':widget.bot.id}),
         'runId':message.runId,
         'messageId':message.id,
         'answer':value,
@@ -176,7 +177,7 @@ class _ThreadScreenState extends State<ThreadScreen> {
         KakaButton(title:'Cancel',filled:false,onPressed:()=>Navigator.pop(context,false)),
       ]));
     if(confirmed==true){
-      try{await widget.api.rpc('threads/clear',{'botId':widget.bot.id}); await thread.load();}
+      try{await widget.api.rpc('threads/clear',widget.group ? {'groupId':widget.bot.id} : {'botId':widget.bot.id}); await thread.load();}
       catch(e){if(mounted)kakaNotice(context,e.toString());}
     }
   }
