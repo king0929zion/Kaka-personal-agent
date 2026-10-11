@@ -83,6 +83,35 @@ class KakaField extends StatelessWidget {
   );
 }
 
+class KakaSwitch extends StatelessWidget {
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+  const KakaSwitch({super.key,required this.value,this.onChanged});
+  @override
+  Widget build(BuildContext context)=>Semantics(
+    toggled:value,
+    enabled:onChanged!=null,
+    onTap:onChanged==null?null:()=>onChanged!(!value),
+    child:GestureDetector(onTap:onChanged==null?null:()=>onChanged!(!value),
+      child:AnimatedContainer(
+        duration:const Duration(milliseconds:220),
+        curve:Curves.easeOutCubic,
+        width:52,height:32,padding:const EdgeInsets.all(4),
+        decoration:BoxDecoration(
+          color:value?KColors.ink:KColors.line,
+          borderRadius:BorderRadius.circular(20)),
+        child:AnimatedAlign(
+          duration:const Duration(milliseconds:220),
+          curve:Curves.easeOutCubic,
+          alignment:value?Alignment.centerRight:Alignment.centerLeft,
+          child:Container(width:24,height:24,
+            decoration:const BoxDecoration(color:Colors.white,shape:BoxShape.circle)),
+        ),
+      ),
+    ),
+  );
+}
+
 class KakaSection extends StatelessWidget {
   final String title;
   final Widget child;
