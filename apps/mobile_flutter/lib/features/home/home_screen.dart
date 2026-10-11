@@ -8,6 +8,7 @@ import '../avatar/organic_avatar.dart';
 import '../avatar/avatar_settings.dart';
 import '../avatar/avatar_editor.dart';
 import '../thread/thread_screen.dart';
+import '../models/model_settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final AppController app;
@@ -251,20 +252,8 @@ class _HomeScreenState extends State<HomeScreen> {
   ]);
 
   Future<void> _showModels() async {
-    try {
-      final data=await widget.app.api.rpc('models/list');
-      if(!mounted)return;
-      final list=data is List?data:<dynamic>[];
-      await kakaSheet<void>(context,ListView(shrinkWrap:true,children:[
-        Text('Available models',style:Theme.of(context).textTheme.headlineMedium),
-        const SizedBox(height:12),
-        for(final m in list.whereType<Map>()) KakaRow(
-          title:'${m['name'] ?? m['id'] ?? 'Model'}',
-          subtitle:'${m['provider'] ?? ''}',icon:LucideIcons.cpu),
-        if(list.isEmpty) const Padding(padding:EdgeInsets.all(20),
-          child:Text('No models available',style:TextStyle(color:KColors.muted))),
-      ]));
-    }catch(e){if(mounted)kakaNotice(context,e.toString());}
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => ModelSettingsScreen(api:widget.app.api)));
   }
 
   Color _color(String raw) {
