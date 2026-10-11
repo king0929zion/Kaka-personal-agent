@@ -183,7 +183,7 @@ class _AvatarPainter extends CustomPainter {
         canvas.rotate(tilt*dir);
         final w=math.max(2.0,scale*width);
         final eyesClosed=state=='wink'&&dir>0;
-        final h=math.max(2.0,scale*height*(eyesClosed?.16:blink));
+        final h=math.max(2.0,scale*height*(eyesClosed ? .16 : blink));
         canvas.drawRRect(RRect.fromRectAndRadius(
           Rect.fromCenter(center:Offset.zero,width:w,height:h),
           Radius.circular(math.min(w,h)/2)),eyePaint);
