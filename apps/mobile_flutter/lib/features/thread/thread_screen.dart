@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
@@ -8,7 +9,6 @@ import '../../core/api.dart';
 import '../../core/models.dart';
 import '../../design/theme.dart';
 import '../../design/widgets.dart';
-import '../avatar/organic_avatar.dart';
 import '../avatar/avatar_settings.dart';
 import '../avatar/avatar_editor.dart';
 import 'thread_controller.dart';
@@ -108,6 +108,36 @@ class _ThreadScreenState extends State<ThreadScreen> {
     }catch(e){
       if(mounted)kakaNotice(context,e.toString());
     }
+  }
+
+  Future<void> previewArtifact(Map<String,dynamic> block) async {
+    final id=block['artifactId']?.toString() ?? '';
+    if(id.isEmpty)return;
+    try {
+      final data=await widget.api.readArtifact(widget.bot.id,id,group:widget.group);
+      final bytes=base64Decode(data['contentBase64']?.toString()??'');
+      if(!mounted)return;
+      final mime=data['mimeType']?.toString()??'';
+      if(mime.startsWith('image/')){
+        await kakaSheet<void>(context,SingleChildScrollView(
+          child:Column(mainAxisSize:MainAxisSize.min,children:[
+            Text(data['name']?.toString()??'Image',
+              style:Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height:14),
+            Image.memory(bytes,fit:BoxFit.contain,
+              errorBuilder:(_,error,stack)=>const Text('Could not display image')),
+          ])),height:MediaQuery.sizeOf(context).height*.65);
+      }else if(mime.startsWith('text/')||mime=='application/json'){
+        await kakaSheet<void>(context,ListView(shrinkWrap:true,children:[
+          Text(data['name']?.toString()??'Text file',
+            style:Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height:16),
+          SelectableText(utf8.decode(bytes,allowMalformed:true)),
+        ]),height:MediaQuery.sizeOf(context).height*.7);
+      }else{
+        kakaNotice(context,'Preview for this file type is not available yet');
+      }
+    }catch(e){if(mounted)kakaNotice(context,e.toString());}
   }
 
   Future<void> answer(KakaMessage message,String value) async {
@@ -342,6 +372,11 @@ class _ThreadScreenState extends State<ThreadScreen> {
   void _messageMenu(KakaMessage message) {
     final text=message.text;
     kakaSheet<void>(context,Column(mainAxisSize:MainAxisSize.min,children:[
+      KakaRow(title:'Copy',icon:LucideIcons.copy,onTap:(){
+        Clipboard.setData(ClipboardData(text:text));
+        Navigator.pop(context);
+        kakaNotice(context,'Copied');
+      }),
       KakaRow(title:'Reply with quote',icon:LucideIcons.reply,onTap:(){
         Navigator.pop(context);
         draft.text='> ${text.length>180?text.substring(0,180):text}\n\n';

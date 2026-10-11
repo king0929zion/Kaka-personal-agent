@@ -6,12 +6,13 @@ Goal: fully custom minimalist Android UI, floating capsule nav, Lucide icons, pi
 - Standalone Flutter source tree; Android embedding generated for installed Flutter SDK.
 - Health probe, endpoint validation, password login, secure session persistence, Space selection.
 - Flat monochrome UI, custom sheets, Chats/Agents/Settings, agent creation and chat.
-- RPC thread snapshot, text send, authenticated SSE subscription and cursor, older message paging.
+- RPC thread snapshot, bot/group text send, authenticated SSE subscription and cursor, older message paging.
+- File picker and 10 MiB/4 attachment upload guardrails, Markdown rendering and image/text preview.
 - 8 organic silhouettes, 16 expression presets, 12 colors, basic breathing/blinking and a local editor.
 - Tests and an Android debug APK CI workflow.
 
 ## Release blockers — not yet implemented or verified
-- Group messaging, file/image upload and download, rich media preview and permission handling.
+- Group lifecycle and advanced events, full media previews, sharing and permission handling.
 - Speech recognition, TTS, realtime calls, Computer remote controls and keyboard.
 - Exact message state reducer and complete cards: tool approvals, choices, MCP and app connection, charts, artifacts, Markdown, code blocks, reactions, quoted replies.
 - Remaining Agent lifecycle, routines, reminders, integrations, model credentials/OAuth, account deletion and other settings flows.

@@ -101,12 +101,14 @@ class ThreadController extends ChangeNotifier {
     if ((text.trim().isEmpty && attachments.isEmpty) || sending) return;
     sending = true; error = null; notifyListeners();
     final uploaded=<String>[];
+    var delivered=false;
     try {
       for(final item in attachments) {
         uploaded.add(await api.createArtifact(botId,group:group,
           name:item.name,mimeType:item.mimeType,bytes:item.bytes));
       }
       await api.send(botId, text.trim(),group:group,artifactIds:uploaded);
+      delivered=true;
       // Refresh ensures optimistic/committed delivery agrees with server.
       final next = await api.thread(botId,group:group);
       if (_disposed) return;
@@ -117,8 +119,8 @@ class ThreadController extends ChangeNotifier {
         runStatus:next.runStatus, messages:combined.values.toList());
     } catch (e) {
       error = e.toString();
-      // If send fails after upload, avoid leaving orphan attachments behind.
-      for(final id in uploaded) {
+      // Never delete artifacts after the server has accepted the message.
+      if(!delivered) for(final id in uploaded) {
         unawaited(api.rpc('artifacts/remove', {'artifactId':id}).catchError((Object _) => null));
       }
     } finally {

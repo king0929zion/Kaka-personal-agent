@@ -6,7 +6,7 @@ This is a separate **Flutter Android client** for the existing Kaka / Rakazo bac
 
 Functional preview: custom monochrome screens, floating pill navigation, server probe, Better Auth sign-in, Space navigation, bot list/create, basic realtime text chat via oRPC + SSE, generic message block presentation, and the first Dart CustomPainter organic avatar editor.
 
-**Not yet feature-equivalent to Expo.** Group chat, media upload/download, voice calls, Computer controls, background notifications, complete Markdown/actions, model credential editing and pixel-identical BLOUB timelines remain migration work. The avatar editor currently persists per-agent overrides **only on this device**. Do not replace a production APK with this preview.
+**Not yet feature-equivalent to Expo.** Rich group management, complete media handling, voice calls, Computer controls, background notifications, complete interactive actions, model credential editing and pixel-identical BLOUB timelines remain migration work. The avatar editor currently persists per-agent overrides **only on this device**. Do not replace a production APK with this preview.
 
 ## Build
 
