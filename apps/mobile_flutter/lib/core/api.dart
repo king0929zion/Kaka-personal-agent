@@ -160,25 +160,25 @@ class KakaApi {
     return list.whereType<Map>().map((e) => KakaBot.fromJson(Map<String, dynamic>.from(e))).toList();
   }
 
-  Future<KakaThread> thread(String botId) async {
-    final data = await rpc('threads/get', {'botId':botId});
+  Future<KakaThread> thread(String targetId, {bool group = false}) async {
+    final data = await rpc('threads/get', group ? {'groupId':targetId} : {'botId':targetId});
     return KakaThread.fromJson(Map<String, dynamic>.from(data as Map));
   }
 
-  Future<void> send(String botId, String message, {String? nonce}) async {
-    await rpc('threads/send', {'botId':botId, 'text':message,
+  Future<void> send(String targetId, String message, {bool group = false, String? nonce}) async {
+    await rpc('threads/send', {...(group ? {'groupId':targetId} : {'botId':targetId}), 'text':message,
       'clientNonce':nonce ?? 'flutter-${DateTime.now().microsecondsSinceEpoch}'});
   }
 
   /// Server uses POST + application/json for authenticated SSE.
   /// Each frame wraps the event in {json: ...}; heartbeat frames do not advance cursor.
-  Stream<KakaThreadEvent> events(String botId, int fromCursor) async* {
+  Stream<KakaThreadEvent> events(String targetId, int fromCursor, {bool group = false}) async* {
     int cursor = fromCursor;
     while (true) {
       try {
         final request = http.Request('POST', Uri.parse('$baseUrl/rpc/threads/subscribe'));
         request.headers.addAll({..._headers, 'accept':'text/event-stream'});
-        request.body = jsonEncode({'json': {'botId':botId, 'cursor':cursor}});
+        request.body = jsonEncode({'json': {...(group ? {'groupId':targetId} : {'botId':targetId}), 'cursor':cursor}});
         final response = await _client.send(request);
         if (response.statusCode >= 400) {
           throw KakaApiException('Event stream unavailable', response.statusCode);

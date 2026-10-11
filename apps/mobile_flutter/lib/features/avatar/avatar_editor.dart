@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import '../../core/models.dart';
 import '../../design/theme.dart';
 import '../../design/widgets.dart';
 import 'organic_avatar.dart';
+import 'avatar_settings.dart';
 
 /// Local preview and persistence while the server-side avatar profile contract
 /// is being added. Settings are intentionally namespaced by bot id.
@@ -15,37 +15,21 @@ class AvatarEditor extends StatefulWidget {
   State<AvatarEditor> createState()=>_AvatarEditorState();
 }
 class _AvatarEditorState extends State<AvatarEditor> {
-  static const storage=FlutterSecureStorage();
   int shape=0, expression=0, color=0;
   @override
-  void initState() {
-    super.initState();
-    _restore();
-  }
+  void initState() {super.initState();_restore();}
   Future<void> _restore() async {
-    try {
-      final id=widget.bot.id;
-      final v=await Future.wait([
-        storage.read(key:'kaka.avatar.$id.shape'),
-        storage.read(key:'kaka.avatar.$id.expression'),
-        storage.read(key:'kaka.avatar.$id.color'),
-      ]);
-      if(!mounted)return;
-      setState((){
-        shape=int.tryParse(v[0]??'')??0;
-        expression=int.tryParse(v[1]??'')??0;
-        color=int.tryParse(v[2]??'')??0;
-      });
-    }catch(_){}
+    final profile=await AvatarRepository.load(widget.bot.id);
+    if(!mounted)return;
+    setState(() {
+      shape=profile.shape; expression=profile.expression;
+      color=profile.color<0?0:profile.color;
+    });
   }
   Future<void> _save() async {
-    final id=widget.bot.id;
     try{
-      await Future.wait([
-        storage.write(key:'kaka.avatar.$id.shape',value:'$shape'),
-        storage.write(key:'kaka.avatar.$id.expression',value:'$expression'),
-        storage.write(key:'kaka.avatar.$id.color',value:'$color'),
-      ]);
+      await AvatarRepository.save(widget.bot.id,
+        AvatarProfile(shape:shape,expression:expression,color:color));
       if(mounted)kakaNotice(context,'Avatar saved on this device');
     }catch(e){if(mounted)kakaNotice(context,e.toString());}
   }

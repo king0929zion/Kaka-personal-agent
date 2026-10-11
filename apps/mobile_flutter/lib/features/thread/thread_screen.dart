@@ -6,6 +6,7 @@ import '../../core/models.dart';
 import '../../design/theme.dart';
 import '../../design/widgets.dart';
 import '../avatar/organic_avatar.dart';
+import '../avatar/avatar_settings.dart';
 import '../avatar/avatar_editor.dart';
 import 'thread_controller.dart';
 
@@ -101,7 +102,7 @@ class _ThreadScreenState extends State<ThreadScreen> {
                             style:const TextStyle(color:KColors.muted,fontSize:13)))),
                     if(thread.messages.isEmpty) Padding(padding:const EdgeInsets.only(top:90),
                       child:Column(children:[
-                        OrganicAvatar(size:105,color:_botColor()),
+                        AgentAvatar(botId:widget.bot.id,size:105,fallbackColor:_botColor()),
                         const SizedBox(height:18),
                         Text(widget.bot.name,style:Theme.of(context).textTheme.headlineMedium),
                         const SizedBox(height:7),
@@ -134,7 +135,7 @@ class _ThreadScreenState extends State<ThreadScreen> {
     child:Row(children:[
       KakaIconButton(icon:LucideIcons.arrowLeft,onTap:()=>Navigator.pop(context)),
       const SizedBox(width:6),
-      OrganicAvatar(size:38,color:_botColor(),working:
+      AgentAvatar(botId:widget.bot.id,size:38,fallbackColor:_botColor(),working:
         ['running','leased'].contains(thread.snapshot?.runStatus)),
       const SizedBox(width:10),
       Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
@@ -187,7 +188,7 @@ class _ThreadScreenState extends State<ThreadScreen> {
       child:Row(crossAxisAlignment:CrossAxisAlignment.start,
         mainAxisAlignment:user?MainAxisAlignment.end:MainAxisAlignment.start,
         children:[
-          if(!user)...[OrganicAvatar(size:27,color:_botColor()),const SizedBox(width:10)],
+          if(!user)...[AgentAvatar(botId:widget.bot.id,size:27,fallbackColor:_botColor()),const SizedBox(width:10)],
           Flexible(child:GestureDetector(
             onLongPress:()=>_messageMenu(message),
             child:Container(

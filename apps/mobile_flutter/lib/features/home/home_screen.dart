@@ -5,6 +5,7 @@ import '../../core/models.dart';
 import '../../design/theme.dart';
 import '../../design/widgets.dart';
 import '../avatar/organic_avatar.dart';
+import '../avatar/avatar_settings.dart';
 import '../avatar/avatar_editor.dart';
 import '../thread/thread_screen.dart';
 
@@ -154,7 +155,7 @@ class _HomeScreenState extends State<HomeScreen> {
             padding:const EdgeInsets.all(15),
             decoration:BoxDecoration(color:KColors.surface,borderRadius:BorderRadius.circular(25)),
             child:Row(children:[
-              OrganicAvatar(size:51,color:_color(bot.color),working:
+              AgentAvatar(botId:bot.id,size:51,fallbackColor:_color(bot.color),working:
                 ['running','leased','queued'].contains(bot.status)),
               const SizedBox(width:14),
               Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[

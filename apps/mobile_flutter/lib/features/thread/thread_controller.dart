@@ -6,7 +6,9 @@ import '../../core/models.dart';
 class ThreadController extends ChangeNotifier {
   final KakaApi api;
   final String botId;
-  ThreadController(this.api, this.botId);
+  final bool group;
+  ThreadController(this.api, this.botId, {this.group = false});
+  Map<String, dynamic> get target => group ? {'groupId':botId} : {'botId':botId};
 
   KakaThread? snapshot;
   String? error;
@@ -24,12 +26,12 @@ class ThreadController extends ChangeNotifier {
     error = null;
     notifyListeners();
     try {
-      final next = await api.thread(botId);
+      final next = await api.thread(botId,group:group);
       if (_disposed || epoch != _epoch) return;
       snapshot = next;
       notifyListeners();
       _listen(next.cursor, epoch);
-      unawaited(api.rpc('threads/markRead', {'botId': botId}).catchError((Object _) => null));
+      unawaited(api.rpc('threads/markRead', {...target}).catchError((Object _) => null));
     } catch (e) {
       if (_disposed || epoch != _epoch) return;
       error = e.toString();
@@ -38,7 +40,7 @@ class ThreadController extends ChangeNotifier {
   }
 
   void _listen(int fromCursor, int epoch) {
-    _events = api.events(botId, fromCursor).listen((event) {
+    _events = api.events(botId, fromCursor, group:group).listen((event) {
       if (_disposed || epoch != _epoch) return;
       apply(event);
     }, onError: (Object e) {
@@ -91,9 +93,9 @@ class ThreadController extends ChangeNotifier {
     if (text.trim().isEmpty || sending) return;
     sending = true; error = null; notifyListeners();
     try {
-      await api.send(botId, text.trim());
+      await api.send(botId, text.trim(),group:group);
       // Refresh ensures optimistic/committed delivery agrees with server.
-      final next = await api.thread(botId);
+      final next = await api.thread(botId,group:group);
       if (_disposed) return;
       final existing = snapshot?.messages ?? const <KakaMessage>[];
       final combined = {for(final m in existing) m.id:m, for(final m in next.messages) m.id:m};
@@ -114,7 +116,7 @@ class ThreadController extends ChangeNotifier {
     notifyListeners();
     try {
       final data = await api.rpc('threads/messages', {
-        'botId':botId, 'before':old.olderCursor, 'includePeerReceipts':true,
+        ...target, 'before':old.olderCursor, 'includePeerReceipts':true,
       });
       final m = Map<String, dynamic>.from(data as Map);
       final page = (m['messages'] is List ? m['messages'] as List : const [])
