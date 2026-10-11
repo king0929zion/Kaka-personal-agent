@@ -1,7 +1,15 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import '../../core/api.dart';
 import '../../core/models.dart';
+
+class PendingAttachment {
+  final String name;
+  final String mimeType;
+  final Uint8List bytes;
+  const PendingAttachment(this.name,this.mimeType,this.bytes);
+}
 
 class ThreadController extends ChangeNotifier {
   final KakaApi api;
@@ -89,11 +97,16 @@ class ThreadController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> send(String text) async {
-    if (text.trim().isEmpty || sending) return;
+  Future<void> send(String text, {List<PendingAttachment> attachments = const []}) async {
+    if ((text.trim().isEmpty && attachments.isEmpty) || sending) return;
     sending = true; error = null; notifyListeners();
+    final uploaded=<String>[];
     try {
-      await api.send(botId, text.trim(),group:group);
+      for(final item in attachments) {
+        uploaded.add(await api.createArtifact(botId,group:group,
+          name:item.name,mimeType:item.mimeType,bytes:item.bytes));
+      }
+      await api.send(botId, text.trim(),group:group,artifactIds:uploaded);
       // Refresh ensures optimistic/committed delivery agrees with server.
       final next = await api.thread(botId,group:group);
       if (_disposed) return;
@@ -104,6 +117,10 @@ class ThreadController extends ChangeNotifier {
         runStatus:next.runStatus, messages:combined.values.toList());
     } catch (e) {
       error = e.toString();
+      // If send fails after upload, avoid leaving orphan attachments behind.
+      for(final id in uploaded) {
+        unawaited(api.rpc('artifacts/remove', {'artifactId':id}).catchError((Object _) => null));
+      }
     } finally {
       if (!_disposed) { sending = false; notifyListeners(); }
     }

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'models.dart';
@@ -165,9 +166,39 @@ class KakaApi {
     return KakaThread.fromJson(Map<String, dynamic>.from(data as Map));
   }
 
-  Future<void> send(String targetId, String message, {bool group = false, String? nonce}) async {
+  Future<void> send(String targetId, String message, {bool group = false, String? nonce, List<String> artifactIds = const []}) async {
     await rpc('threads/send', {...(group ? {'groupId':targetId} : {'botId':targetId}), 'text':message,
+      if (artifactIds.isNotEmpty) 'artifactIds':artifactIds,
       'clientNonce':nonce ?? 'flutter-${DateTime.now().microsecondsSinceEpoch}'});
+  }
+
+
+  Future<String> createArtifact(String targetId, {
+    bool group = false, required String name, required String mimeType,
+    required Uint8List bytes,
+  }) async {
+    if (bytes.isEmpty || bytes.lengthInBytes > 10*1024*1024) {
+      throw const KakaApiException('Attachments must be between 1 byte and 10 MB');
+    }
+    final data = await rpc('artifacts/create', {
+      ...(group ? {'groupId':targetId} : {'botId':targetId}),
+      'name':name,
+      'mimeType':mimeType,
+      'contentBase64':base64Encode(bytes),
+    });
+    if (data is! Map || data['id'] == null) {
+      throw const KakaApiException('Could not upload attachment');
+    }
+    return data['id'].toString();
+  }
+
+  Future<Map<String,dynamic>> readArtifact(String targetId,
+    String artifactId, {bool group = false}) async {
+    final data = await rpc('artifacts/get', {
+      ...(group ? {'groupId':targetId} : {'botId':targetId}),
+      'artifactId':artifactId,
+    });
+    return Map<String,dynamic>.from(data as Map);
   }
 
   /// Server uses POST + application/json for authenticated SSE.

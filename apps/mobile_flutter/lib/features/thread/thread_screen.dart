@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import '../../core/api.dart';
 import '../../core/models.dart';
@@ -22,6 +25,7 @@ class ThreadScreen extends StatefulWidget {
 class _ThreadScreenState extends State<ThreadScreen> {
   late final ThreadController thread = ThreadController(widget.api, widget.bot.id, group:widget.group);
   final draft = TextEditingController();
+  final attachments=<PendingAttachment>[];
   final scroll = ScrollController();
   int lastCount = 0;
   bool focused = false;
@@ -53,15 +57,59 @@ class _ThreadScreenState extends State<ThreadScreen> {
   }
   Future<void> send() async {
     final text = draft.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty && attachments.isEmpty) return;
+    final files=List<PendingAttachment>.from(attachments);
     draft.clear();
-    await thread.send(text);
+    await thread.send(text,attachments:files);
+    if (thread.error == null && mounted) setState(attachments.clear);
     if (!mounted) return;
     if (thread.error != null && draft.text.isEmpty) {
       draft.text = text;
       kakaNotice(context, thread.error!);
     }
   }
+
+  String? _mime(String name) {
+    final n=name.toLowerCase();
+    const types={
+      '.jpeg':'image/jpeg','.jpg':'image/jpeg','.png':'image/png',
+      '.webp':'image/webp','.gif':'image/gif','.pdf':'application/pdf',
+      '.txt':'text/plain','.md':'text/markdown','.csv':'text/csv',
+      '.html':'text/html','.json':'application/json','.zip':'application/zip',
+    };
+    for (final item in types.entries) {
+      if (n.endsWith(item.key)) return item.value;
+    }
+    return null;
+  }
+
+  Future<void> pickAttachment() async {
+    try {
+      final picked=await FilePicker.pickFiles();
+      for(final file in picked) {
+        if (attachments.length>=4) {
+          if (mounted) kakaNotice(context,'Maximum 4 attachments per message');
+          return;
+        }
+        final mime=_mime(file.name);
+        if (mime==null) {
+          if (mounted) kakaNotice(context,'Unsupported file type: ${file.name}');
+          continue;
+        }
+        final len=file.lengthSync() ?? await file.length();
+        if (len==null || len>10*1024*1024 || len==0) {
+          if (mounted) kakaNotice(context,'File must be 1 byte to 10 MB');
+          continue;
+        }
+        final bytes=await file.readAsBytes();
+        if (!mounted)return;
+        setState(()=>attachments.add(PendingAttachment(file.name,mime,bytes)));
+      }
+    }catch(e){
+      if(mounted)kakaNotice(context,e.toString());
+    }
+  }
+
   Future<void> answer(KakaMessage message,String value) async {
     try {
       await widget.api.rpc('threads/answer', {
@@ -210,8 +258,18 @@ class _ThreadScreenState extends State<ThreadScreen> {
       final text='${block['text'] ?? ''}';
       if(text.trim().isEmpty)return const SizedBox.shrink();
       return Padding(padding:const EdgeInsets.only(bottom:5),
-        child:SelectableText(text,style:const TextStyle(
-          fontSize:15.5,height:1.54,color:KColors.ink)));
+        child:MarkdownBody(
+          data:text,
+          selectable:true,
+          styleSheet:MarkdownStyleSheet(
+            p:const TextStyle(fontSize:15.5,height:1.54,color:KColors.ink),
+            code:const TextStyle(fontSize:13,color:KColors.ink,fontFamily:'monospace'),
+            codeblockDecoration:BoxDecoration(color:KColors.soft,
+              borderRadius:BorderRadius.circular(16)),
+            blockquoteDecoration:BoxDecoration(color:KColors.soft,
+              borderRadius:BorderRadius.circular(10)),
+          ),
+        ));
     }
     if(kind=='image'||kind=='file')return _blockCard(
       kind=='image'?LucideIcons.image:LucideIcons.file,
@@ -299,14 +357,33 @@ class _ThreadScreenState extends State<ThreadScreen> {
   Widget _composer() => AnimatedBuilder(animation:thread,builder:(context,_) =>
     Padding(padding:EdgeInsets.fromLTRB(16,5,16,
       MediaQuery.viewInsetsOf(context).bottom>0?8:17),
-      child:Container(
+      child:Column(mainAxisSize:MainAxisSize.min,children:[
+        if(attachments.isNotEmpty) SingleChildScrollView(
+          scrollDirection:Axis.horizontal,
+          child:Row(children:[
+            for(var i=0;i<attachments.length;i++) Padding(
+              padding:const EdgeInsets.only(right:7,bottom:8),
+              child:GestureDetector(onTap:()=>setState(()=>attachments.removeAt(i)),
+                child:Container(padding:const EdgeInsets.symmetric(horizontal:13,vertical:10),
+                  decoration:BoxDecoration(color:KColors.soft,
+                    borderRadius:BorderRadius.circular(19)),
+                  child:Row(mainAxisSize:MainAxisSize.min,children:[
+                    const Icon(LucideIcons.file,size:14,color:KColors.ink),
+                    const SizedBox(width:7),
+                    ConstrainedBox(constraints:const BoxConstraints(maxWidth:140),
+                      child:Text(attachments[i].name,overflow:TextOverflow.ellipsis,
+                        style:const TextStyle(fontSize:12))),
+                    const SizedBox(width:9),
+                    const Icon(LucideIcons.x,size:13,color:KColors.muted),
+                  ])))),
+          ])),
+        Container(
         decoration:BoxDecoration(color:KColors.surface,
           border:Border.all(color:KColors.line,width:.7),
           borderRadius:BorderRadius.circular(30)),
         padding:const EdgeInsets.fromLTRB(13,9,8,9),
         child:Row(crossAxisAlignment:CrossAxisAlignment.end,children:[
-          KakaIconButton(icon:LucideIcons.plus,size:40,onTap:()=>
-            kakaNotice(context,'File attachments are not connected yet')),
+          KakaIconButton(icon:LucideIcons.plus,size:40,onTap:pickAttachment),
           const SizedBox(width:5),
           Expanded(child:TextField(controller:draft,
             minLines:1,maxLines:6,keyboardType:TextInputType.multiline,
@@ -320,8 +397,9 @@ class _ThreadScreenState extends State<ThreadScreen> {
           KakaIconButton(
             icon:thread.sending?LucideIcons.clock:LucideIcons.arrowUp,
             filled:true,size:42,
-            onTap:thread.sending||draft.text.trim().isEmpty?null:send),
+            onTap:thread.sending||(draft.text.trim().isEmpty&&attachments.isEmpty)?null:send),
         ]),
       ),
+      ]),
     ));
 }

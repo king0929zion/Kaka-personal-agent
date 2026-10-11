@@ -12,6 +12,8 @@ dependencies:
   http: ^1.6.0
   flutter_secure_storage: ^11.2.0
   lucide_flutter: ^1.47.0
+  flutter_markdown_plus: ^1.0.12
+  file_picker: ^13.1.0
 
 dev_dependencies:
   flutter_test:

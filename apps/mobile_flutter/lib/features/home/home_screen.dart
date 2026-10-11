@@ -128,7 +128,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ])),
       );
     });
-  }
 
   Widget _list(int tab) {
     final filter=query.text.trim().toLowerCase();
