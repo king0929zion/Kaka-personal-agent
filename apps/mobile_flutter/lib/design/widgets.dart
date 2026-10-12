@@ -78,29 +78,102 @@ class _KakaPressState extends State<KakaPress>
       );
 }
 
+/// Icon graphics may be compact, but the hit area is never below 48 dp.
 class KakaIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onTap;
   final bool filled;
   final double size;
   final String? tooltip;
-  const KakaIconButton({super.key, required this.icon, this.onTap,
-    this.filled = false, this.size = 48, this.tooltip});
+
+  const KakaIconButton({
+    super.key,
+    required this.icon,
+    this.onTap,
+    this.filled = false,
+    this.size = 48,
+    this.tooltip,
+  });
+
   @override
-  Widget build(BuildContext context)=>Semantics(
-    button:true,enabled:onTap!=null,label:tooltip,
-    child:KakaPress(onTap:onTap,haptic:true,child:AnimatedOpacity(
-      duration:const Duration(milliseconds:140),
-      opacity:onTap==null ? .45 : 1,
-      child:Container(
-        height:size,width:size,
-        decoration:BoxDecoration(
-          color:filled?KColors.ink:KColors.surface,
-          borderRadius:BorderRadius.circular(size/2)),
-        alignment:Alignment.center,
-        child:Icon(icon,size:21,color:filled?Colors.white:KColors.ink),
+  Widget build(BuildContext context) {
+    final hitSize = math.max(KLayout.minTouchTarget, size);
+    return Semantics(
+      button: true,
+      enabled: onTap != null,
+      label: tooltip,
+      child: KakaPress(
+        onTap: onTap,
+        haptic: true,
+        child: SizedBox(
+          width: hitSize,
+          height: hitSize,
+          child: Center(
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 140),
+              opacity: onTap == null ? .45 : 1,
+              child: Container(
+                height: size,
+                width: size,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: filled ? KColors.ink : KColors.surface,
+                  borderRadius: BorderRadius.circular(size / 2),
+                ),
+                child: Icon(
+                  icon,
+                  size: size <= 40 ? 19 : 21,
+                  color: filled ? Colors.white : KColors.ink,
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
-    )),
+    );
+  }
+}
+
+/// A common optical header: all back arrows use the same physical anchor,
+/// titles share the same text baseline and actions retain 48 dp hit areas.
+class KakaPageHeader extends StatelessWidget {
+  final Widget title;
+  final List<Widget> actions;
+  final VoidCallback? onBack;
+
+  const KakaPageHeader({
+    super.key,
+    required this.title,
+    this.actions = const [],
+    this.onBack,
+  });
+
+  @override
+  Widget build(BuildContext context) => KakaContentWidth(
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+      child: Row(
+        children: [
+          KakaIconButton(
+            icon: LucideIcons.arrowLeft,
+            tooltip: 'Back',
+            onTap: onBack ?? () => Navigator.of(context).pop(),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: DefaultTextStyle(
+              style: Theme.of(context).textTheme.titleLarge ??
+                  const TextStyle(fontSize: 17, color: KColors.ink),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              child: title,
+            ),
+          ),
+          if (actions.isNotEmpty) const SizedBox(width: 8),
+          ...actions,
+        ],
+      ),
+    ),
   );
 }
 
@@ -309,29 +382,51 @@ class _KakaLoadingRailState extends State<KakaLoadingRail>
     ));
 }
 
+/// Compact visible toggle with an accessible 48 dp vertical target.
 class KakaSwitch extends StatelessWidget {
   final bool value;
   final ValueChanged<bool>? onChanged;
-  const KakaSwitch({super.key,required this.value,this.onChanged});
+  const KakaSwitch({super.key, required this.value, this.onChanged});
+
   @override
-  Widget build(BuildContext context)=>Semantics(
-    toggled:value,
-    enabled:onChanged!=null,
-    onTap:onChanged==null?null:()=>onChanged!(!value),
-    child:GestureDetector(onTap:onChanged==null?null:()=>onChanged!(!value),
-      child:AnimatedContainer(
-        duration:KakaMotion.standard,
-        curve:KakaMotion.arrive,
-        width:52,height:32,padding:const EdgeInsets.all(4),
-        decoration:BoxDecoration(
-          color:value?KColors.ink:KColors.line,
-          borderRadius:BorderRadius.circular(20)),
-        child:AnimatedAlign(
-          duration:KakaMotion.standard,
-          curve:KakaMotion.arrive,
-          alignment:value?Alignment.centerRight:Alignment.centerLeft,
-          child:Container(width:24,height:24,
-            decoration:const BoxDecoration(color:Colors.white,shape:BoxShape.circle)),
+  Widget build(BuildContext context) => Semantics(
+    toggled: value,
+    enabled: onChanged != null,
+    onTap: onChanged == null ? null : () => onChanged!(!value),
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onChanged == null ? null : () => onChanged!(!value),
+      child: SizedBox(
+        width: 52,
+        height: KLayout.minTouchTarget,
+        child: Center(
+          child: AnimatedContainer(
+            duration: kakaReduceMotion(context)
+                ? Duration.zero : KakaMotion.standard,
+            curve: KakaMotion.arrive,
+            width: 52,
+            height: 32,
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: value ? KColors.ink : KColors.line,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: AnimatedAlign(
+              duration: kakaReduceMotion(context)
+                  ? Duration.zero : KakaMotion.standard,
+              curve: KakaMotion.arrive,
+              alignment: value
+                  ? Alignment.centerRight : Alignment.centerLeft,
+              child: Container(
+                width: 24,
+                height: 24,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     ),
@@ -346,8 +441,8 @@ class KakaSection extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Padding(padding: const EdgeInsets.only(left: 4, bottom: 11),
-        child: Text(title, style: const TextStyle(fontSize: 13, color: KColors.muted))),
+      Padding(padding: const EdgeInsets.only(left: 5, bottom: 10),
+        child: Text(title, style: const TextStyle(fontSize: 12, letterSpacing: .7, fontWeight: FontWeight.w600, color: KColors.muted))),
       Container(width: double.infinity,
         decoration: BoxDecoration(color: KColors.surface, borderRadius: BorderRadius.circular(KRadius.card)),
         child: child),
@@ -366,24 +461,24 @@ class KakaRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) => KakaPress(onTap:onTap,
     child:Padding(
-      padding:const EdgeInsets.symmetric(vertical:12,horizontal:14),
+      padding:const EdgeInsets.symmetric(vertical:10,horizontal:15),
       child:Row(children:[
         Container(width:42,height:42,alignment:Alignment.center,
           decoration:BoxDecoration(color:KColors.soft,
             borderRadius:BorderRadius.circular(16)),
           child:Icon(icon,size:19,color:KColors.ink)),
-        const SizedBox(width:13),
+        const SizedBox(width:14),
         Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-          Text(title,style:const TextStyle(fontSize:14.5,
+          Text(title,style:const TextStyle(fontSize:15,
             fontWeight:FontWeight.w500,color:KColors.ink)),
           if(subtitle!=null)Padding(padding:const EdgeInsets.only(top:4),
             child:Text(subtitle!,maxLines:2,overflow:TextOverflow.ellipsis,
-              style:const TextStyle(fontSize:12,color:KColors.muted,height:1.35))),
+              style:const TextStyle(fontSize:13,color:KColors.muted,height:1.35))),
         ])),
         const SizedBox(width:8),
         trailing ?? (onTap==null?const SizedBox.shrink():
           Icon(LucideIcons.chevronRight,
-            size:17,color:KColors.muted.withValues(alpha:.75))),
+            size:KLayout.trailingIcon,color:KColors.muted.withValues(alpha:.75))),
       ]),
     ),
   );
