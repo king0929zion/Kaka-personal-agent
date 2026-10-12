@@ -37,6 +37,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   final scroll = ScrollController();
   int lastCount = 0;
   bool _scrollFramePending = false;
+  bool _loadingOlderHistory = false;
   // Reuse existing Markdown widget subtrees when an unrelated SSE event arrives.
   // A changed message instance gets a new subtree automatically.
   final _messageCache =
@@ -62,6 +63,9 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     final wasNearBottom=scroll.hasClients &&
       scroll.position.maxScrollExtent-scroll.position.pixels<145;
     lastCount=count;
+    // Pagination adds items BEFORE the viewport. Never interpret that as a
+    // reason to follow the bottom; the offset restoration owns this frame.
+    if (_loadingOlderHistory || thread.fetchingMore) return;
     if(!firstLoad && !wasNearBottom)return;
     // Multiple token events may arrive before layout. Schedule only one
     // correction and do not interrupt the viewport if it is already aligned.
@@ -106,21 +110,30 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     super.dispose();
   }
   Future<void> _olderPage() async {
-    if(!scroll.hasClients){
+    if (_loadingOlderHistory || thread.fetchingMore) return;
+    _loadingOlderHistory = true;
+    final attached = scroll.hasClients;
+    final oldMax = attached ? scroll.position.maxScrollExtent : 0.0;
+    final oldPixels = attached ? scroll.position.pixels : 0.0;
+    try {
       await thread.loadOlder();
-      return;
-    }
-    final oldMax=scroll.position.maxScrollExtent;
-    final oldPixels=scroll.position.pixels;
-    await thread.loadOlder();
-    WidgetsBinding.instance.addPostFrameCallback((_){
-      if(!mounted||!scroll.hasClients)return;
-      final delta=scroll.position.maxScrollExtent-oldMax;
-      if(delta>0){
-        scroll.jumpTo((oldPixels+delta).clamp(
-          scroll.position.minScrollExtent,scroll.position.maxScrollExtent));
+    } finally {
+      if (!mounted || !attached || !scroll.hasClients) {
+        _loadingOlderHistory = false;
+      } else {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _loadingOlderHistory = false;
+          if (!mounted || !scroll.hasClients) return;
+          final delta = scroll.position.maxScrollExtent - oldMax;
+          if (delta > 0) {
+            scroll.jumpTo((oldPixels + delta).clamp(
+              scroll.position.minScrollExtent,
+              scroll.position.maxScrollExtent,
+            ));
+          }
+        });
       }
-    });
+    }
   }
 
   Future<void> send() async {
@@ -298,12 +311,20 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           : ListView.builder(
               controller:scroll,
               key:PageStorageKey('thread-${widget.bot.id}-${widget.group}'),
+              findChildIndexCallback: (key) {
+                if (key is! ValueKey<String>) return null;
+                if (key.value == 'kaka-thread-header') return 0;
+                final index = thread.messages.indexWhere(
+                  (item) => item.id == key.value,
+                );
+                return index < 0 ? null : index + 1;
+              },
               cacheExtent:170,
               padding:const EdgeInsets.fromLTRB(20,9,20,24),
               itemCount:thread.messages.length+1,
               itemBuilder:(ctx,i) {
                 if(i==0) {
-                  return Column(children:[
+                  return Column(key:const ValueKey<String>('kaka-thread-header'),children:[
                     if(thread.snapshot?.olderCursor!=null)
                       Padding(padding:const EdgeInsets.only(bottom:20),
                         child:GestureDetector(onTap:_olderPage,
