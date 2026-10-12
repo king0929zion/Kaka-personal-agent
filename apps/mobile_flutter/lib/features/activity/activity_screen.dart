@@ -85,7 +85,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
       Expanded(child:KakaPullToRefresh(onRefresh:_refresh,
         child:ListView.builder(
           physics:const AlwaysScrollableScrollPhysics(parent:ClampingScrollPhysics()),
-          padding:const EdgeInsets.fromLTRB(22,8,22,widget.embedded?140:30),
+          padding:EdgeInsets.fromLTRB(22,8,22,widget.embedded?140:30),
           itemCount:runs.isEmpty?1:runs.length,
           itemBuilder:(context,index){
             if(runs.isEmpty)return Padding(padding:const EdgeInsets.only(top:70),
