@@ -18,6 +18,7 @@ import '../activity/activity_screen.dart';
 import '../spaces/spaces_screen.dart';
 import '../archives/archived_screen.dart';
 import '../account/account_screen.dart';
+import '../messaging/messaging_screen.dart';
 import '../artifacts/artifact_library_screen.dart';
 import '../memory/memory_screen.dart';
 import '../agents/agent_settings_screen.dart';
@@ -398,6 +399,9 @@ class _HomeScreenState extends State<HomeScreen> {
       KakaRow(title:'MCP servers',icon:LucideIcons.server,
         onTap:()=>Navigator.push(context,MaterialPageRoute<void>(
           builder:(_)=>McpScreen(api:widget.app.api)))),
+      KakaRow(title:'Messaging',icon:LucideIcons.messagesSquare,
+        onTap:()=>Navigator.push(context,MaterialPageRoute<void>(
+          builder:(_)=>MessagingScreen(app:widget.app)))),
       KakaRow(title:'Integrations',icon:LucideIcons.plug,onTap:()=>Navigator.push(context,
         MaterialPageRoute<void>(builder:(_)=>IntegrationsScreen(api:widget.app.api)))),
       KakaRow(title:'Voice',icon:LucideIcons.audioLines,onTap:()=>Navigator.push(context,
