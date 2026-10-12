@@ -185,10 +185,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 Text(['Chats','Agents','Settings'][tab],
                   style:Theme.of(context).textTheme.headlineLarge),
                 Row(children:[
-                  if(tab!=2) KakaIconButton(icon:LucideIcons.search,onTap:(){
-                    setState(()=>searching=!searching);
-                    if(!searching)query.clear();
-                  }),
+                  if(tab!=2) KakaIconButton(icon:LucideIcons.search,onTap:()=>
+                    Navigator.push(context,MaterialPageRoute<void>(
+                      builder:(_)=>SearchScreen(app:widget.app)))),
                   const SizedBox(width:8),
                   if(tab!=2) KakaIconButton(icon:LucideIcons.refreshCw,onTap:widget.app.refresh),
                 ]),
