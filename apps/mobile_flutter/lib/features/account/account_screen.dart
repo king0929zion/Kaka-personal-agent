@@ -109,7 +109,7 @@ class _AccountScreenState extends State<AccountScreen> {
     }
   }
   @override
-  Widget build(BuildContext context)=>Scaffold(
+  Widget build(BuildContext context)=>KakaDepthStage(child:Scaffold(
     backgroundColor:KColors.bg,
     body:SafeArea(child:Column(children:[
       KakaPageHeader(
@@ -153,5 +153,5 @@ class _AccountScreenState extends State<AccountScreen> {
         ])),
       ]))),
     ])),
-  );
+  ));
 }
