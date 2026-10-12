@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
@@ -116,7 +118,12 @@ class _ThreadScreenState extends State<ThreadScreen> {
     if(id.isEmpty)return;
     try {
       final data=await widget.api.readArtifact(widget.bot.id,id,group:widget.group);
-      final bytes=base64Decode(data['contentBase64']?.toString()??'');
+      final encoded=data['contentBase64']?.toString()??'';
+      if(encoded.length>14*1024*1024) {
+        throw const KakaApiException('Attachment too large to preview');
+      }
+      // Decode off the UI isolate to avoid freezing the chat while opening media.
+      final bytes=await compute<String,Uint8List>(base64Decode,encoded);
       if(!mounted)return;
       final mime=data['mimeType']?.toString()??'';
       if(mime.startsWith('image/')){
@@ -133,7 +140,13 @@ class _ThreadScreenState extends State<ThreadScreen> {
           Text(data['name']?.toString()??'Text file',
             style:Theme.of(context).textTheme.titleLarge),
           const SizedBox(height:16),
-          SelectableText(utf8.decode(bytes,allowMalformed:true)),
+          SelectableText(utf8.decode(
+            bytes.lengthInBytes>128*1024 ? bytes.sublist(0,128*1024) : bytes,
+            allowMalformed:true)),
+          if(bytes.lengthInBytes>128*1024)const Padding(
+            padding:EdgeInsets.only(top:12),
+            child:Text('Preview limited to 128 KB to protect memory.',
+              style:TextStyle(color:KColors.muted,fontSize:12))),
         ]),height:MediaQuery.sizeOf(context).height*.7);
       }else{
         kakaNotice(context,'Preview for this file type is not available yet');
