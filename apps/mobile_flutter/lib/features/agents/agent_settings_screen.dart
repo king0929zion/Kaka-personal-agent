@@ -149,7 +149,7 @@ class _AgentSettingsScreenState extends State<AgentSettingsScreen> {
           Center(child:SizedBox(width:194,
             child:KakaButton(title:'Customize avatar',filled:false,
               onPressed:()=>Navigator.of(context).push(MaterialPageRoute<void>(
-                builder:(_)=>AvatarEditor(bot:widget.bot))))),
+                builder:(_)=>AvatarEditor(bot:widget.bot)))))),
           const SizedBox(height:26),
           KakaField(controller:name,label:'Name'),
           const SizedBox(height:14),
