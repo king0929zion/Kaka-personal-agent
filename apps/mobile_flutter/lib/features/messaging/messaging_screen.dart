@@ -203,7 +203,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
         Expanded(child:Text('Messaging',style:Theme.of(context).textTheme.headlineMedium)),
         KakaIconButton(icon:LucideIcons.refreshCw,onTap:_refresh),
       ])),
-      if(loading||busy)const LinearProgressIndicator(color:KColors.ink),
+      if(loading||busy)const KakaLoadingRail(),
       Expanded(child:RefreshIndicator(onRefresh:_refresh,color:KColors.ink,
         child:ListView(padding:const EdgeInsets.fromLTRB(22,12,22,40),children:[
           if(error!=null)Padding(padding:const EdgeInsets.only(bottom:12),

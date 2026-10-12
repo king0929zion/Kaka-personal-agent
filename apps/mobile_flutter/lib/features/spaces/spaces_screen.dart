@@ -124,7 +124,7 @@ class _SpacesScreenState extends State<SpacesScreen> {
         KakaIconButton(icon:LucideIcons.plus,filled:true,
           onTap:busy?null:_create),
       ])),
-      if(busy)const LinearProgressIndicator(color:KColors.ink),
+      if(busy)const KakaLoadingRail(),
       Expanded(child:RefreshIndicator(onRefresh:_load,color:KColors.ink,
         child:ListView.builder(
           padding:const EdgeInsets.fromLTRB(22,14,22,40),

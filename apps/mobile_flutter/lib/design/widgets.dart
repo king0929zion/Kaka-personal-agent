@@ -1,4 +1,6 @@
 import 'dart:ui';
+import 'dart:math' as math;
+import '../core/performance_prefs.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
@@ -94,8 +96,7 @@ class KakaButton extends StatelessWidget {
           color:filled?KColors.ink:KColors.soft,
           borderRadius:BorderRadius.circular(KRadius.button)),
         child:busy
-          ? SizedBox(width:19,height:19,child:CircularProgressIndicator(
-              strokeWidth:2,color:filled?Colors.white:KColors.ink))
+          ? KakaLoadingDots(color:filled?Colors.white:KColors.ink)
           : Text(title,style:TextStyle(
               fontSize:15,fontWeight:FontWeight.w600,
               color:filled?Colors.white:KColors.ink)),
@@ -167,6 +168,118 @@ class _KakaFieldState extends State<KakaField> {
         ),
       ),
     ],
+  );
+}
+
+/// Three quiet, custom-painted loading beats instead of Android/Material spinners.
+class KakaLoadingDots extends StatefulWidget {
+  final Color color;
+  const KakaLoadingDots({super.key,this.color=KColors.ink});
+  @override
+  State<KakaLoadingDots> createState()=>_KakaLoadingDotsState();
+}
+class _KakaLoadingDotsState extends State<KakaLoadingDots>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller=AnimationController(
+    vsync:this,duration:const Duration(milliseconds:1180));
+  @override
+  void initState(){
+    super.initState();
+    PerformancePrefs.lowPower.addListener(_syncMotion);
+    _controller.repeat();
+  }
+  void _syncMotion(){
+    if(!mounted)return;
+    if(kakaReduceMotion(context))_controller.stop();
+    else if(!_controller.isAnimating)_controller.repeat();
+  }
+  @override
+  void didChangeDependencies(){super.didChangeDependencies();_syncMotion();}
+  @override
+  void dispose(){
+    PerformancePrefs.lowPower.removeListener(_syncMotion);
+    _controller.dispose();
+    super.dispose();
+  }
+  @override
+  Widget build(BuildContext context)=>RepaintBoundary(
+    child:SizedBox(width:37,height:17,
+      child:AnimatedBuilder(animation:_controller,
+        builder:(_,__)=>CustomPaint(painter:_DotsPainter(
+          color:widget.color,phase:_controller.value))),
+    ),
+  );
+}
+
+class _DotsPainter extends CustomPainter {
+  final Color color;
+  final double phase;
+  _DotsPainter({required this.color,required this.phase});
+  @override
+  void paint(Canvas canvas,Size size){
+    final radius=math.min(3.2,size.width/13);
+    final spacing=size.width/4;
+    for(var i=0;i<3;i++){
+      final wave=math.sin((phase*2*math.pi)-(i*.75));
+      final y=size.height/2-wave*2.1;
+      final alpha=(.44+(wave+1)*.28).clamp(.35,1.0).toDouble();
+      canvas.drawCircle(Offset(spacing*(i+1),y),
+        radius*(.84+.13*(wave+1)),
+        Paint()..color=color.withValues(alpha:alpha));
+    }
+  }
+  @override
+  bool shouldRepaint(covariant _DotsPainter old)=>
+    old.phase!=phase || old.color!=color;
+}
+
+/// A thin sliding capsule that preserves low visual weight in page headers.
+class KakaLoadingRail extends StatefulWidget {
+  final Color color;
+  const KakaLoadingRail({super.key,this.color=KColors.ink});
+  @override
+  State<KakaLoadingRail> createState()=>_KakaLoadingRailState();
+}
+class _KakaLoadingRailState extends State<KakaLoadingRail>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller=AnimationController(
+    vsync:this,duration:const Duration(milliseconds:1250));
+  @override
+  void initState(){
+    super.initState();
+    _controller.repeat();
+    PerformancePrefs.lowPower.addListener(_sync);
+  }
+  void _sync(){
+    if(!mounted)return;
+    if(kakaReduceMotion(context))_controller.stop();
+    else if(!_controller.isAnimating)_controller.repeat();
+  }
+  @override
+  void didChangeDependencies(){super.didChangeDependencies();_sync();}
+  @override
+  void dispose(){
+    PerformancePrefs.lowPower.removeListener(_sync);
+    _controller.dispose();
+    super.dispose();
+  }
+  @override
+  Widget build(BuildContext context)=>LayoutBuilder(builder:(ctx,c)=>
+    SizedBox(height:3,child:AnimatedBuilder(animation:_controller,
+      builder:(ctx,_) {
+        final length=c.maxWidth.isFinite?c.maxWidth:120.0;
+        final segment=math.max(12.0,length*.27);
+        final start=_controller.isAnimating
+          ?_controller.value*(length+segment)-segment:0.0;
+        return Stack(clipBehavior:Clip.hardEdge,children:[
+          Positioned.fill(child:DecoratedBox(decoration:BoxDecoration(
+            color:KColors.soft,borderRadius:BorderRadius.circular(5)))),
+          Positioned(left:start,top:0,width:segment,height:3,
+            child:DecoratedBox(decoration:BoxDecoration(
+              color:widget.color,borderRadius:BorderRadius.circular(5)))),
+        ]);
+      }),
+    )),
   );
 }
 

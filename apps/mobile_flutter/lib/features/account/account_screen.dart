@@ -119,7 +119,7 @@ class _AccountScreenState extends State<AccountScreen> {
         Expanded(child:Text('Account',style:Theme.of(context).textTheme.headlineMedium)),
         KakaIconButton(icon:LucideIcons.refreshCw,onTap:_refresh),
       ])),
-      if(loading)const LinearProgressIndicator(color:KColors.ink),
+      if(loading)const KakaLoadingRail(),
       Expanded(child:ListView(padding:const EdgeInsets.fromLTRB(22,12,22,36),children:[
         if(error!=null)Text(error!,
           style:const TextStyle(color:KColors.error,fontSize:13)),

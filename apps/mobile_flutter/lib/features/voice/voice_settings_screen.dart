@@ -135,7 +135,7 @@ class _VoiceSettingsScreenState extends State<VoiceSettingsScreen> {
         KakaIconButton(icon:LucideIcons.refreshCw,onTap:_refresh),
       ])),
       Expanded(child:ListView(padding:const EdgeInsets.fromLTRB(22,12,22,32),children:[
-        if(loading||busy) const LinearProgressIndicator(color:KColors.ink),
+        if(loading||busy) const KakaLoadingRail(),
         if(error!=null)Padding(padding:const EdgeInsets.only(bottom:15),
           child:Text(error!,style:const TextStyle(fontSize:13,color:KColors.error))),
         KakaSection(title:'STATUS',child:Column(children:[

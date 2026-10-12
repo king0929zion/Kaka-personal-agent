@@ -80,7 +80,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
                   fontWeight:FontWeight.w600))))),
       ])),
       const SizedBox(height:12),
-      if(loading)const LinearProgressIndicator(color:KColors.ink),
+      if(loading)const KakaLoadingRail(),
       Expanded(child:RefreshIndicator(onRefresh:_refresh,color:KColors.ink,
         child:ListView.builder(
           padding:const EdgeInsets.fromLTRB(22,8,22,30),

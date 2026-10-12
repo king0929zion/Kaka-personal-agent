@@ -94,7 +94,7 @@ class _AiPrivacyScreenState extends State<AiPrivacyScreen> {
             style:Theme.of(context).textTheme.headlineMedium)),
           KakaIconButton(icon:LucideIcons.refreshCw,onTap:_load),
         ])),
-        if(loading||busy)const LinearProgressIndicator(color:KColors.ink),
+        if(loading||busy)const KakaLoadingRail(),
         Expanded(child:ListView(padding:const EdgeInsets.fromLTRB(22,14,22,40),
           children:[
             const Text('Manage which third-party services can receive your data for model responses, voice and memory.',

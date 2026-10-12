@@ -112,7 +112,7 @@ class _MemoryScreenState extends State<MemoryScreen> {
         KakaIconButton(icon:LucideIcons.copy,
           tooltip:'Copy Markdown',onTap:exporting?null:_export),
       ])),
-      if(loading)const LinearProgressIndicator(color:KColors.ink),
+      if(loading)const KakaLoadingRail(),
       Expanded(child:RefreshIndicator(onRefresh:_refresh,color:KColors.ink,
         child:ListView.builder(
           padding:const EdgeInsets.fromLTRB(22,9,22,30),

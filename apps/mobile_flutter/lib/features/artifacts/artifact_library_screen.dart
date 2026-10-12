@@ -115,7 +115,7 @@ class _ArtifactLibraryScreenState extends State<ArtifactLibraryScreen> {
         KakaIconButton(icon:LucideIcons.refreshCw,
           onTap:()=>_load(reset:true)),
       ])),
-      if(loading||opening)const LinearProgressIndicator(color:KColors.ink),
+      if(loading||opening)const KakaLoadingRail(),
       Expanded(child:RefreshIndicator(color:KColors.ink,
         onRefresh:()=>_load(reset:true),
         child:ListView.builder(

@@ -169,7 +169,7 @@ class _ComputerScreenState extends State<ComputerScreen>
             ]),
           ),
           if(loading) const Padding(padding:EdgeInsets.only(top:12),
-            child:LinearProgressIndicator(color:KColors.ink)),
+            child:KakaLoadingRail()),
           if(error!=null) Padding(padding:const EdgeInsets.only(top:14),
             child:Text(error!,style:const TextStyle(color:KColors.error,fontSize:13))),
           const SizedBox(height:23),

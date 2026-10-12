@@ -3,6 +3,7 @@ import 'app/app_controller.dart';
 import 'core/api.dart';
 import 'core/performance_prefs.dart';
 import 'design/theme.dart';
+import 'design/widgets.dart';
 import 'features/auth/auth_screen.dart';
 import 'features/home/home_screen.dart';
 
@@ -28,7 +29,7 @@ class KakaApp extends StatelessWidget {
       switch(controller.state) {
         case StartupState.starting:
           return const Scaffold(body:Center(
-            child:CircularProgressIndicator(color:KColors.ink)));
+            child:KakaLoadingDots()));
         case StartupState.server:
         case StartupState.login:
           return AuthScreen(app:controller);

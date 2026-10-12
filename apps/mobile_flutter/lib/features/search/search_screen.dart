@@ -103,7 +103,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 borderRadius:BorderRadius.circular(27)),
               contentPadding:const EdgeInsets.symmetric(vertical:15)))),
         ])),
-      if(busy)const LinearProgressIndicator(color:KColors.ink),
+      if(busy)const KakaLoadingRail(),
       if(error!=null)Padding(padding:const EdgeInsets.fromLTRB(22,10,22,12),
         child:Text(error!,style:const TextStyle(fontSize:12,color:KColors.error))),
       Expanded(child:ListView.builder(

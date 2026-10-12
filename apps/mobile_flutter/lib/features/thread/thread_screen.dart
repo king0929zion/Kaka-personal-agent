@@ -266,7 +266,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                   Text(thread.error!,textAlign:TextAlign.center),
                   const SizedBox(height:16),
                   KakaButton(title:'Try again',onPressed:thread.load),
-                ]) : const CircularProgressIndicator(color:KColors.ink))
+                ]) : const KakaLoadingDots())
           : ListView.builder(
               controller:scroll,
               padding:const EdgeInsets.fromLTRB(20,9,20,24),

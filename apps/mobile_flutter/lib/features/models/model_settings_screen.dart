@@ -201,7 +201,7 @@ class _ModelSettingsScreenState extends State<ModelSettingsScreen> {
         ])),
       Expanded(child:RefreshIndicator(onRefresh:_refresh,color:KColors.ink,
         child:ListView(padding:const EdgeInsets.fromLTRB(22,10,22,30),children:[
-          if(loading) const LinearProgressIndicator(color:KColors.ink),
+          if(loading) const KakaLoadingRail(),
           if(error!=null) Padding(padding:const EdgeInsets.only(bottom:15),
             child:Text(error!,style:const TextStyle(color:KColors.error,fontSize:13))),
           KakaSection(title:'CONNECTED MODELS',child:credentials.isEmpty

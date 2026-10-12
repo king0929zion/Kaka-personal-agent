@@ -186,7 +186,7 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
         Expanded(child:Text('Routines',style:Theme.of(context).textTheme.headlineMedium)),
         KakaIconButton(icon:LucideIcons.plus,onTap:_create,filled:true),
       ])),
-      if(loading||busy)const LinearProgressIndicator(color:KColors.ink),
+      if(loading||busy)const KakaLoadingRail(),
       Expanded(child:RefreshIndicator(onRefresh:_refresh,color:KColors.ink,
         child:ListView(padding:const EdgeInsets.fromLTRB(22,13,22,30),children:[
           Text(widget.bot.name,style:const TextStyle(

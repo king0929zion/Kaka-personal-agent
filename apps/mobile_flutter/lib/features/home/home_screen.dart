@@ -215,7 +215,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ]))),
                 const Spacer(),
                 if(widget.app.busy) const SizedBox(width:14,height:14,
-                  child:CircularProgressIndicator(strokeWidth:1.6,color:KColors.ink)),
+                  child:KakaLoadingDots()),
               ])),
             if(searching&&tab!=2) Padding(padding:const EdgeInsets.fromLTRB(22,0,22,15),
               child:TextField(controller:query,onChanged:(_)=>setState((){}),

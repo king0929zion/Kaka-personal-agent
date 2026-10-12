@@ -140,7 +140,7 @@ class _AgentSettingsScreenState extends State<AgentSettingsScreen> {
         Expanded(child:Text('Agent settings',style:Theme.of(context).textTheme.titleLarge)),
         KakaIconButton(icon:LucideIcons.check,filled:true,onTap:saving?null:_save),
       ])),
-      Expanded(child:loading?const Center(child:CircularProgressIndicator(color:KColors.ink))
+      Expanded(child:loading?const Center(child:KakaLoadingDots())
         :ListView(padding:const EdgeInsets.fromLTRB(22,12,22,40),children:[
           Center(child:AgentAvatar(botId:widget.bot.id,size:94)),
           const SizedBox(height:12),

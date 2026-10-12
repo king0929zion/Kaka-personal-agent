@@ -69,7 +69,7 @@ class _UsageScreenState extends State<UsageScreen> {
         Expanded(child:Text('Usage',style:Theme.of(context).textTheme.headlineMedium)),
         KakaIconButton(icon:LucideIcons.refreshCw,onTap:_refresh),
       ])),
-      if(loading)const LinearProgressIndicator(color:KColors.ink),
+      if(loading)const KakaLoadingRail(),
       Expanded(child:RefreshIndicator(onRefresh:_refresh,color:KColors.ink,
         child:ListView.builder(
           padding:const EdgeInsets.fromLTRB(20,12,20,35),

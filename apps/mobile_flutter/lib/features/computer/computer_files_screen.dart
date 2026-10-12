@@ -112,7 +112,7 @@ class _ComputerFilesScreenState extends State<ComputerFilesScreen> {
       Padding(padding:const EdgeInsets.fromLTRB(23,10,23,15),
         child:Text(path,maxLines:2,overflow:TextOverflow.ellipsis,
           style:const TextStyle(color:KColors.muted,fontSize:13))),
-      if(loading||opening)const LinearProgressIndicator(color:KColors.ink),
+      if(loading||opening)const KakaLoadingRail(),
       Expanded(child:ListView.builder(
         padding:const EdgeInsets.fromLTRB(20,8,20,30),
         itemCount:files.isEmpty?1:files.length,

@@ -113,7 +113,7 @@ class _IntegrationsScreenState extends State<IntegrationsScreen> {
               filled:true,fillColor:KColors.soft,
               border:OutlineInputBorder(borderSide:BorderSide.none,
                 borderRadius:BorderRadius.circular(25))))),
-        if(loading||busy)const LinearProgressIndicator(color:KColors.ink),
+        if(loading||busy)const KakaLoadingRail(),
         Expanded(child:RefreshIndicator(onRefresh:_refresh,color:KColors.ink,
           child:ListView(padding:const EdgeInsets.fromLTRB(22,8,22,36),
             children:[

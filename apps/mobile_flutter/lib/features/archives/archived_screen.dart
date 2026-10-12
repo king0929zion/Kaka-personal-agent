@@ -92,7 +92,7 @@ class _ArchivedScreenState extends State<ArchivedScreen>{
           Expanded(child:Text('Archive',style:Theme.of(context).textTheme.headlineMedium)),
           KakaIconButton(icon:LucideIcons.refreshCw,onTap:_load),
         ])),
-      if(busy)const LinearProgressIndicator(color:KColors.ink),
+      if(busy)const KakaLoadingRail(),
       Expanded(child:RefreshIndicator(onRefresh:_load,color:KColors.ink,
         child:ListView(padding:const EdgeInsets.fromLTRB(22,13,22,40),children:[
           if(error!=null)Text(error!,
