@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../core/performance_prefs.dart';
-import 'theme.dart';
 
 /// Consistent, short, non-overshooting motion for Kaka's custom controls.
 abstract final class KakaMotion {
@@ -92,7 +91,7 @@ class KakaProgressiveBlur extends StatelessWidget {
   const KakaProgressiveBlur({
     super.key,
     this.fromTop = false,
-    this.tint = KColors.bg,
+    this.tint = const Color(0xFFF7F7F6),
     this.height = 88,
   });
 
@@ -146,7 +145,7 @@ class KakaGlassSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) => DecoratedBox(
     decoration: BoxDecoration(
-      color: KColors.surface,
+      color: Colors.white,
       borderRadius: BorderRadius.circular(radius),
     ),
     child: Padding(padding: padding, child: child),
