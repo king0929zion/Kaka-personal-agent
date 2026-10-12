@@ -2,25 +2,58 @@ import 'package:flutter/material.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'theme.dart';
 
+/// Fast, self-drawn press feedback without Material ink/splash effects.
+class _KakaPress extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+  const _KakaPress({required this.child,this.onTap});
+  @override
+  State<_KakaPress> createState()=>_KakaPressState();
+}
+class _KakaPressState extends State<_KakaPress> {
+  bool pressed=false;
+  void _setPressed(bool value){
+    if(widget.onTap==null||pressed==value)return;
+    setState(()=>pressed=value);
+  }
+  @override
+  Widget build(BuildContext context)=>GestureDetector(
+    behavior:HitTestBehavior.opaque,
+    onTap:widget.onTap,
+    onTapDown:widget.onTap==null?null:(_)=>_setPressed(true),
+    onTapUp:widget.onTap==null?null:(_)=>_setPressed(false),
+    onTapCancel:()=>_setPressed(false),
+    child:AnimatedScale(
+      scale:pressed ? .965 : 1,
+      duration:const Duration(milliseconds:130),
+      curve:Curves.easeOutCubic,
+      child:widget.child),
+  );
+}
+
 class KakaIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onTap;
   final bool filled;
   final double size;
-  const KakaIconButton({super.key, required this.icon, this.onTap, this.filled = false, this.size = 48});
+  final String? tooltip;
+  const KakaIconButton({super.key, required this.icon, this.onTap,
+    this.filled = false, this.size = 48, this.tooltip});
   @override
-  Widget build(BuildContext context) => Semantics(
-    button: true,
-    child: GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: size, width: size,
-        decoration: BoxDecoration(color: filled ? KColors.ink : KColors.surface,
-          borderRadius: BorderRadius.circular(size / 2)),
-        alignment: Alignment.center,
-        child: Icon(icon, size: 21, color: filled ? Colors.white : KColors.ink),
+  Widget build(BuildContext context)=>Semantics(
+    button:true,enabled:onTap!=null,label:tooltip,
+    child:_KakaPress(onTap:onTap,child:AnimatedOpacity(
+      duration:const Duration(milliseconds:140),
+      opacity:onTap==null ? .45 : 1,
+      child:Container(
+        height:size,width:size,
+        decoration:BoxDecoration(
+          color:filled?KColors.ink:KColors.surface,
+          borderRadius:BorderRadius.circular(size/2)),
+        alignment:Alignment.center,
+        child:Icon(icon,size:21,color:filled?Colors.white:KColors.ink),
       ),
-    ),
+    )),
   );
 }
 
@@ -29,28 +62,27 @@ class KakaButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final bool filled;
   final bool busy;
-  const KakaButton({super.key, required this.title, this.onPressed, this.filled = true, this.busy = false});
+  const KakaButton({super.key,required this.title,this.onPressed,
+    this.filled=true,this.busy=false});
   @override
-  Widget build(BuildContext context) => Semantics(
-    button: true,
-    child: GestureDetector(
-      onTap: busy ? null : onPressed,
-      child: AnimatedOpacity(
-        duration: const Duration(milliseconds: 160),
-        opacity: onPressed == null || busy ? .5 : 1,
-        child: Container(
-          height: 54, alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: filled ? KColors.ink : KColors.soft,
-            borderRadius: BorderRadius.circular(KRadius.button)),
-          child: busy
-            ? SizedBox(width: 19, height: 19, child: CircularProgressIndicator(
-                strokeWidth: 2, color: filled ? Colors.white : KColors.ink))
-            : Text(title, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600,
-                color: filled ? Colors.white : KColors.ink)),
-        ),
+  Widget build(BuildContext context)=>Semantics(
+    button:true,enabled:onPressed!=null&&!busy,label:title,
+    child:_KakaPress(onTap:busy?null:onPressed,child:AnimatedOpacity(
+      duration:const Duration(milliseconds:140),
+      opacity:onPressed==null||busy ? .55 : 1,
+      child:Container(
+        height:54,alignment:Alignment.center,
+        decoration:BoxDecoration(
+          color:filled?KColors.ink:KColors.soft,
+          borderRadius:BorderRadius.circular(KRadius.button)),
+        child:busy
+          ? SizedBox(width:19,height:19,child:CircularProgressIndicator(
+              strokeWidth:2,color:filled?Colors.white:KColors.ink))
+          : Text(title,style:TextStyle(
+              fontSize:15,fontWeight:FontWeight.w600,
+              color:filled?Colors.white:KColors.ink)),
       ),
-    ),
+    )),
   );
 }
 
