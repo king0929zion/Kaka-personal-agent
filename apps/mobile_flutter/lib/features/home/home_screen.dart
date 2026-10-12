@@ -216,7 +216,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) => AnimatedBuilder(
     animation:widget.app,
     builder:(context,_) {
-      final tab=widget.app.tab.clamp(0,3);
+      final tab=widget.app.tab.clamp(0,3).toInt();
       final direction=tab>=_previousTab ? 1 : -1;
       _previousTab=tab;
       return KakaDepthStage(child:Scaffold(
