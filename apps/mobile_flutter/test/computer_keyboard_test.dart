@@ -1,4 +1,6 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart';
 import 'package:kaka_flutter/features/computer/computer_keyboard_bar.dart';
 
 void main(){
@@ -36,4 +38,60 @@ void main(){
       {'type':'text','text':'y'},
     ]);
   });
+  test('Ctrl modifies a Backspace and large edits preserve all deletes',(){
+    expect(computerKeyboardCommands('abcd','ab',control:true),[
+      {'type':'key','name':'Backspace','control':true},
+      {'type':'backspace','count':1},
+    ]);
+    expect(computerKeyboardCommands(List.filled(1001,'x').join(),''),[
+      {'type':'backspace','count':500},
+      {'type':'backspace','count':500},
+      {'type':'backspace','count':1},
+    ]);
+    expect(computerNamedKey('Escape',control:true),
+      {'type':'key','name':'Escape','control':true});
+  });
+
+  testWidgets('Android IME input sends actual remote text and dedicated keys',
+    (tester)async{
+      final commands=<Map<String,dynamic>>[];
+      await tester.pumpWidget(MaterialApp(home:Scaffold(body:
+        ComputerKeyboardBar(enabled:true,
+          send:(command)async{commands.add(command);}),
+      )));
+      final input=find.byKey(const ValueKey('remote-computer-ime'));
+      expect(input,findsOneWidget);
+      await tester.enterText(input,'abc');
+      await tester.pump();
+      expect(commands,contains({'type':'text','text':'abc'}));
+      await tester.tap(find.text('Esc'));
+      await tester.pump();
+      expect(commands.last,{'type':'key','name':'Escape'});
+      await tester.enterText(input,'c');
+      await tester.pump();
+      expect(commands.last,{'type':'text','text':'c'});
+      await tester.tap(find.text('Ctrl'));
+      await tester.tap(find.text('Tab'));
+      await tester.pump();
+      expect(commands.last,{'type':'key','name':'Tab','control':true});
+      await tester.tap(find.text('⌫'));
+      await tester.pump();
+      expect(commands.last,{'type':'key','name':'Backspace'});
+      await tester.pumpWidget(const SizedBox());
+    });
+
+  testWidgets('offline keyboard disables input and remote key delivery',
+    (tester)async{
+      final commands=<Map<String,dynamic>>[];
+      await tester.pumpWidget(MaterialApp(home:Scaffold(body:
+        ComputerKeyboardBar(enabled:false,
+          send:(command)async{commands.add(command);}),
+      )));
+      expect(tester.widget<TextField>(
+        find.byKey(const ValueKey('remote-computer-ime'))).enabled,false);
+      await tester.tap(find.text('Esc'));
+      await tester.pump();
+      expect(commands,isEmpty);
+    });
+
 }
