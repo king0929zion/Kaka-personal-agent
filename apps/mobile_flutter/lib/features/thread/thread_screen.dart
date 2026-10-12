@@ -31,6 +31,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   late final ThreadController thread = ThreadController(widget.api, widget.bot.id, group:widget.group);
   final draft = TextEditingController();
   final attachments=<PendingAttachment>[];
+  static const maxQueuedBytes=12*1024*1024;
   final scroll = ScrollController();
   int lastCount = 0;
   bool focused = false;
@@ -139,6 +140,12 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         final len=file.lengthSync() ?? await file.length();
         if (len==null || len>10*1024*1024 || len==0) {
           if (mounted) kakaNotice(context,'File must be 1 byte to 10 MB');
+          continue;
+        }
+        final alreadyQueued=attachments.fold<int>(0,
+          (total,item)=>total+item.bytes.lengthInBytes);
+        if(alreadyQueued+len>maxQueuedBytes){
+          if(mounted)kakaNotice(context,'Total attachments cannot exceed 12 MB');
           continue;
         }
         final bytes=await file.readAsBytes();

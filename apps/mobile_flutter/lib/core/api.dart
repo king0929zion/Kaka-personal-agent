@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'models.dart';
@@ -189,11 +190,14 @@ class KakaApi {
     if (bytes.isEmpty || bytes.lengthInBytes > 10*1024*1024) {
       throw const KakaApiException('Attachments must be between 1 byte and 10 MB');
     }
+    final encoded=bytes.lengthInBytes>128*1024
+      ? await compute<Uint8List,String>(base64Encode,bytes)
+      : base64Encode(bytes);
     final data = await rpc('artifacts/create', {
       ...(group ? {'groupId':targetId} : {'botId':targetId}),
       'name':name,
       'mimeType':mimeType,
-      'contentBase64':base64Encode(bytes),
+      'contentBase64':encoded,
     });
     if (data is! Map || data['id'] == null) {
       throw const KakaApiException('Could not upload attachment');
