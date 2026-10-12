@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/api.dart';
 import '../../core/models.dart';
 import '../../design/theme.dart';
@@ -150,6 +151,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
               style:Theme.of(context).textTheme.titleLarge),
             const SizedBox(height:14),
             Image.memory(bytes,fit:BoxFit.contain,
+              cacheWidth:(MediaQuery.sizeOf(context).width *
+                MediaQuery.devicePixelRatioOf(context)).round().clamp(1,1536),
               errorBuilder:(_,error,stack)=>const Text('Could not display image')),
           ])),height:MediaQuery.sizeOf(context).height*.65);
       }else if(mime.startsWith('text/')||mime=='application/json'){
@@ -168,6 +171,44 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       }else{
         kakaNotice(context,'Preview for this file type is not available yet');
       }
+    }catch(e){if(mounted)kakaNotice(context,e.toString());}
+  }
+
+  Future<void> _connectApp(Map<String,dynamic> block) async {
+    final provider=block['provider']?.toString()??'';
+    if(provider.isEmpty)return;
+    try {
+      final data=await widget.api.rpc('connections/begin',{
+        'connectorId':block['connectorId']?.toString()??'composio',
+        'provider':provider,
+        'displayName':block['name']?.toString()??provider,
+      });
+      final result=Map<String,dynamic>.from(data as Map);
+      final authorizationUrl=result['authorizationUrl']?.toString();
+      if(authorizationUrl!=null&&authorizationUrl.isNotEmpty){
+        final uri=Uri.tryParse(authorizationUrl);
+        if(uri==null || uri.scheme!='https' || uri.host.isEmpty){
+          throw const KakaApiException('Invalid authorization URL');
+        }
+        if(!await launchUrl(uri,mode:LaunchMode.externalApplication)){
+          throw const KakaApiException('Could not launch authorization');
+        }
+        if(mounted)kakaNotice(context,'Complete authorization in your browser');
+      }else{
+        final id=result['connectionId']?.toString()??'';
+        if(id.isNotEmpty){
+          await widget.api.rpc('connections/complete',{'connectionId':id});
+        }
+        await thread.load();
+      }
+    }catch(e){if(mounted)kakaNotice(context,e.toString());}
+  }
+
+  Future<void> _markUnread() async {
+    try{
+      await widget.api.rpc('threads/markUnread',widget.group?
+        {'groupId':widget.bot.id}:{'botId':widget.bot.id});
+      if(mounted)Navigator.pop(context);
     }catch(e){if(mounted)kakaNotice(context,e.toString());}
   }
 
@@ -270,6 +311,11 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
             Navigator.push(context,MaterialPageRoute<void>(builder:(_)=>
               ComputerScreen(api:widget.api,bot:widget.bot)));
           }),
+          KakaRow(title:'Mark unread',icon:LucideIcons.mail,
+            onTap:(){
+              Navigator.pop(context);
+              _markUnread();
+            }),
           KakaRow(title:'Refresh chat',icon:LucideIcons.refreshCw,onTap:(){
             Navigator.pop(context);thread.load();}),
           KakaRow(title:'Clear conversation',icon:LucideIcons.trash2,onTap:(){
@@ -350,12 +396,39 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           ),
         ));
     }
-    if(kind=='image'||kind=='file')return _blockCard(
-      kind=='image'?LucideIcons.image:LucideIcons.file,
-      '${block['name'] ?? (kind=='image'?'Image':'File')}',
-      kind=='file'?'Attachment':'Image attachment');
+    if(kind=='image'||kind=='file')return GestureDetector(
+      onTap:()=>previewArtifact(block),
+      child:_blockCard(
+        kind=='image'?LucideIcons.image:LucideIcons.file,
+        '${block['name'] ?? (kind=='image'?'Image':'File')}',
+        kind=='file'?'Open attachment':'Preview image'));
     if(kind=='chart')return _blockCard(LucideIcons.chartColumn,
       '${block['name'] ?? 'Chart'}','Chart output');
+    if(kind=='app_connect'){
+      final connected=block['status']=='connected';
+      return Container(
+        margin:const EdgeInsets.symmetric(vertical:5),
+        padding:const EdgeInsets.all(16),
+        decoration:BoxDecoration(color:KColors.surface,
+          borderRadius:BorderRadius.circular(24)),
+        child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Row(children:[
+            const Icon(LucideIcons.plug,size:19,color:KColors.ink),
+            const SizedBox(width:10),
+            Expanded(child:Text(block['name']?.toString()??'Connect app',
+              style:const TextStyle(fontSize:15,fontWeight:FontWeight.w600))),
+            if(connected)const Icon(LucideIcons.circleCheck,
+              size:19,color:KColors.ink),
+          ]),
+          if(block['description']!=null)Padding(
+            padding:const EdgeInsets.only(top:8,bottom:12),
+            child:Text(block['description'].toString(),
+              style:const TextStyle(fontSize:13,height:1.45,color:KColors.muted))),
+          if(!connected)KakaButton(title:'Authorize',
+            onPressed:()=>_connectApp(block)),
+        ]),
+      );
+    }
     if(kind=='computer')return GestureDetector(
       onTap:widget.group?null:()=>Navigator.push(context,
         MaterialPageRoute<void>(builder:(_)=>ComputerScreen(
