@@ -279,8 +279,7 @@ class _KakaLoadingRailState extends State<KakaLoadingRail>
               color:widget.color,borderRadius:BorderRadius.circular(5)))),
         ]);
       }),
-    )),
-  );
+    ));
 }
 
 class KakaSwitch extends StatelessWidget {
