@@ -538,19 +538,21 @@ class _KakaSheetSpringCurve extends Curve {
 class _KakaDraggableSheet extends StatefulWidget {
   final Animation<double> animation;
   final Widget child;
-  const _KakaDraggableSheet({required this.animation,required this.child});
+  final GlobalKey surfaceKey;
+  const _KakaDraggableSheet({
+    required this.animation,required this.child,required this.surfaceKey,
+  });
   @override
   State<_KakaDraggableSheet> createState()=>_KakaDraggableSheetState();
 }
 
 class _KakaDraggableSheetState extends State<_KakaDraggableSheet>
     with SingleTickerProviderStateMixin {
-  final _surfaceKey=GlobalKey();
   late final AnimationController _drag =
       AnimationController.unbounded(vsync:this);
   double get _height =>
-      (_surfaceKey.currentContext?.findRenderObject() is RenderBox)
-          ? (_surfaceKey.currentContext!.findRenderObject()! as RenderBox).size.height
+      (widget.surfaceKey.currentContext?.findRenderObject() is RenderBox)
+          ? (widget.surfaceKey.currentContext!.findRenderObject()! as RenderBox).size.height
           : MediaQuery.sizeOf(context).height*.75;
 
   @override
@@ -570,7 +572,9 @@ class _KakaDraggableSheetState extends State<_KakaDraggableSheet>
   }
 
   void _syncDepth() {
-    final route=widget.animation.value.clamp(0.0,1.0);
+    final t=widget.animation.value.clamp(0.0,1.0);
+    final route=kakaReduceMotion(context)
+        ? t : const _KakaSheetSpringCurve().transform(t).clamp(0.0,1.0);
     final factor=(1-_drag.value/math.max(1,_height)).clamp(0.0,1.0);
     final next=(route*factor).clamp(0.0,1.0);
     if ((KakaSheetDepth.progress.value-next).abs()>.001) {
@@ -627,7 +631,7 @@ class _KakaDraggableSheetState extends State<_KakaDraggableSheet>
           behavior:HitTestBehavior.translucent,
           onVerticalDragUpdate:_dragUpdate,
           onVerticalDragEnd:_dragEnd,
-          child:KeyedSubtree(key:_surfaceKey,child:child!),
+          child:child!,
         ),
       );
     },
@@ -636,8 +640,9 @@ class _KakaDraggableSheetState extends State<_KakaDraggableSheet>
 
 /// Custom bottom sheet. A real spring samples the entering position while the
 /// parent page retreats in sync; drag gestures can dismiss or spring back.
-Future<T?> kakaSheet<T>(BuildContext context, Widget content, {double? height}) =>
-    showGeneralDialog<T>(
+Future<T?> kakaSheet<T>(BuildContext context, Widget content, {double? height}) {
+  final sheetSurfaceKey=GlobalKey();
+  return showGeneralDialog<T>(
       context:context,
       barrierDismissible:true,
       barrierLabel:'Dismiss',
@@ -656,6 +661,7 @@ Future<T?> kakaSheet<T>(BuildContext context, Widget content, {double? height}) 
             child:SafeArea(
               top:false,
               child:ClipRRect(
+                key:sheetSurfaceKey,
                 borderRadius:const BorderRadius.vertical(
                   top:Radius.circular(KRadius.sheet)),
                 child:Container(
@@ -692,8 +698,11 @@ Future<T?> kakaSheet<T>(BuildContext context, Widget content, {double? height}) 
         ),
       ),
       transitionBuilder:(ctx,animation,secondary,child)=>
-        _KakaDraggableSheet(animation:animation,child:child),
+        _KakaDraggableSheet(
+          animation:animation,child:child,
+          surfaceKey:sheetSurfaceKey),
     );
+}
 
 /// Lightweight animated notice; removes its OverlayEntry and ticker on exit.
 void kakaNotice(BuildContext context,String message) {
