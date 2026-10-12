@@ -5,6 +5,7 @@ import '../../core/models.dart';
 import '../../design/theme.dart';
 import '../../design/widgets.dart';
 import '../avatar/avatar_editor.dart';
+import '../routines/routines_screen.dart';
 import '../avatar/avatar_settings.dart';
 
 class AgentSettingsScreen extends StatefulWidget {
@@ -153,6 +154,9 @@ class _AgentSettingsScreenState extends State<AgentSettingsScreen> {
           KakaField(controller:instructions,label:'Instructions',maxLines:6),
           const SizedBox(height:25),
           KakaSection(title:'PREFERENCES',child:Column(children:[
+            KakaRow(title:'Routines',icon:LucideIcons.calendarClock,
+              onTap:()=>Navigator.push(context,MaterialPageRoute<void>(
+                builder:(_)=>RoutinesScreen(api:widget.api,bot:widget.bot)))),
             KakaRow(title:'Model',subtitle:modelId ?? 'Workspace default',
               icon:LucideIcons.cpu,onTap:_chooseModel),
             KakaRow(title:'Pin agent',icon:LucideIcons.pin,
