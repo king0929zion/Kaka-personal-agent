@@ -408,15 +408,23 @@ class _HomeScreenState extends State<HomeScreen> {
       KakaGlassSurface(radius:39,padding:const EdgeInsets.all(7),
         sigma:17,child:SizedBox(width:162,height:52,
           child:Stack(children:[
-            AnimatedPositioned(
-              duration:kakaReduceMotion(context)
-                ?Duration.zero:KakaMotion.standard,
-              curve:KakaMotion.arrive,
-              left:54.0*tab,top:0,
-              child:Container(width:54,height:52,
-                decoration:BoxDecoration(
-                  color:KColors.ink,
-                  borderRadius:BorderRadius.circular(29))),
+            // Only the pill's transform changes during tab switching.
+            // AnimatedPositioned relaid out this entire navigation Stack
+            // every frame, including the Lucide icon hit targets.
+            Positioned(left:0,top:0,
+              child:TweenAnimationBuilder<double>(
+                tween:Tween<double>(end:tab.toDouble()),
+                duration:kakaReduceMotion(context)
+                  ?Duration.zero:KakaMotion.standard,
+                curve:KakaMotion.arrive,
+                builder:(context,position,child)=>Transform.translate(
+                  offset:Offset(position*54.0,0),child:child),
+                child:Container(width:54,height:52,
+                  decoration:BoxDecoration(
+                    color:KColors.ink,
+                    borderRadius:BorderRadius.circular(29))),
+              ),
+            ),
             ),
             Row(children:[
               _navButton(0,LucideIcons.messageCircle,tab),
