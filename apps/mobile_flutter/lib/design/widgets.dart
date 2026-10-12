@@ -550,10 +550,11 @@ class _KakaDraggableSheetState extends State<_KakaDraggableSheet>
     with SingleTickerProviderStateMixin {
   late final AnimationController _drag =
       AnimationController.unbounded(vsync:this);
-  double get _height =>
-      (widget.surfaceKey.currentContext?.findRenderObject() is RenderBox)
-          ? (widget.surfaceKey.currentContext!.findRenderObject()! as RenderBox).size.height
-          : MediaQuery.sizeOf(context).height*.75;
+  double get _height {
+    final render=widget.surfaceKey.currentContext?.findRenderObject();
+    if(render is RenderBox && render.hasSize) return render.size.height;
+    return MediaQuery.sizeOf(context).height*.75;
+  }
 
   @override
   void initState() {
@@ -625,13 +626,22 @@ class _KakaDraggableSheetState extends State<_KakaDraggableSheet>
           ? widget.animation.value
           : const _KakaSheetSpringCurve().transform(widget.animation.value);
       final entry=math.min(_height,MediaQuery.sizeOf(context).height*.9);
-      return Transform.translate(
-        offset:Offset(0,(1-progress)*entry+_drag.value),
-        child:GestureDetector(
-          behavior:HitTestBehavior.translucent,
-          onVerticalDragUpdate:_dragUpdate,
-          onVerticalDragEnd:_dragEnd,
-          child:child!,
+      return Align(
+        alignment:Alignment.bottomCenter,
+        child:Transform.translate(
+          offset:Offset(0,(1-progress)*entry+_drag.value),
+          child:GestureDetector(
+            behavior:HitTestBehavior.opaque,
+            onVerticalDragUpdate:_dragUpdate,
+            onVerticalDragEnd:_dragEnd,
+            child:AnimatedPadding(
+              padding:EdgeInsets.only(
+                bottom:MediaQuery.viewInsetsOf(context).bottom),
+              duration:reduced?Duration.zero:KakaMotion.quick,
+              curve:KakaMotion.arrive,
+              child:child!,
+            ),
+          ),
         ),
       );
     },
@@ -650,13 +660,7 @@ Future<T?> kakaSheet<T>(BuildContext context, Widget content, {double? height}) 
       transitionDuration:kakaReduceMotion(context)
           ? const Duration(milliseconds:180)
           : const Duration(milliseconds:400),
-      pageBuilder:(ctx,a,b)=>AnimatedPadding(
-        padding:EdgeInsets.only(bottom:MediaQuery.viewInsetsOf(ctx).bottom),
-        duration:kakaReduceMotion(ctx)?Duration.zero:KakaMotion.quick,
-        curve:KakaMotion.arrive,
-        child:Align(
-          alignment:Alignment.bottomCenter,
-          child:Material(
+      pageBuilder:(ctx,a,b)=>Material(
             type:MaterialType.transparency,
             child:SafeArea(
               top:false,
@@ -695,8 +699,6 @@ Future<T?> kakaSheet<T>(BuildContext context, Widget content, {double? height}) 
               ),
             ),
           ),
-        ),
-      ),
       transitionBuilder:(ctx,animation,secondary,child)=>
         _KakaDraggableSheet(
           animation:animation,child:child,
