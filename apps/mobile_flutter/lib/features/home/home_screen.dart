@@ -12,6 +12,7 @@ import '../thread/thread_screen.dart';
 import '../models/model_settings_screen.dart';
 import '../voice/voice_settings_screen.dart';
 import '../integrations/integrations_screen.dart';
+import '../mcp/mcp_screen.dart';
 import '../search/search_screen.dart';
 import '../activity/activity_screen.dart';
 import '../agents/agent_settings_screen.dart';
@@ -387,6 +388,9 @@ class _HomeScreenState extends State<HomeScreen> {
       KakaRow(title:'Server',subtitle:widget.app.api.baseUrl,
         icon:LucideIcons.server,onTap:()=>kakaNotice(context,'Sign out before changing servers')),
       KakaRow(title:'Models',icon:LucideIcons.cpu,onTap:()=>_showModels()),
+      KakaRow(title:'MCP servers',icon:LucideIcons.server,
+        onTap:()=>Navigator.push(context,MaterialPageRoute<void>(
+          builder:(_)=>McpScreen(api:widget.app.api)))),
       KakaRow(title:'Integrations',icon:LucideIcons.plug,onTap:()=>Navigator.push(context,
         MaterialPageRoute<void>(builder:(_)=>IntegrationsScreen(api:widget.app.api)))),
       KakaRow(title:'Voice',icon:LucideIcons.audioLines,onTap:()=>Navigator.push(context,
