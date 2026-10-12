@@ -19,6 +19,7 @@ import '../spaces/spaces_screen.dart';
 import '../archives/archived_screen.dart';
 import '../account/account_screen.dart';
 import '../messaging/messaging_screen.dart';
+import '../usage/usage_screen.dart';
 import '../artifacts/artifact_library_screen.dart';
 import '../memory/memory_screen.dart';
 import '../agents/agent_settings_screen.dart';
@@ -421,6 +422,9 @@ class _HomeScreenState extends State<HomeScreen> {
       KakaRow(title:'Archive',icon:LucideIcons.archive,
         onTap:()=>Navigator.push(context,MaterialPageRoute<void>(
           builder:(_)=>ArchivedScreen(app:widget.app)))),
+      KakaRow(title:'Usage',icon:LucideIcons.chartNoAxesColumn,
+        onTap:()=>Navigator.push(context,MaterialPageRoute<void>(
+          builder:(_)=>UsageScreen(api:widget.app.api)))),
       KakaRow(title:'Activity',icon:LucideIcons.activity,
         onTap:()=>Navigator.push(context,MaterialPageRoute<void>(
           builder:(_)=>ActivityScreen(app:widget.app)))),
