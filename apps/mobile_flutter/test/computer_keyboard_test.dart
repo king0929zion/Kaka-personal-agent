@@ -63,7 +63,7 @@ void main(){
       expect(input,findsOneWidget);
       await tester.enterText(input,'abc');
       await tester.pump();
-      expect(commands,contains({'type':'text','text':'abc'}));
+      expect(commands.last,{'type':'text','text':'abc'});
       await tester.tap(find.text('Esc'));
       await tester.pump();
       expect(commands.last,{'type':'key','name':'Escape'});
@@ -114,7 +114,7 @@ void main(){
       selection:TextSelection.collapsed(offset:1),
     );
     await tester.pump();
-    expect(commands,contains({'type':'text','text':'你'}));
+    expect(commands.last,{'type':'text','text':'你'});
   });
 
   testWidgets('physical Escape key controls remote desktop',(tester)async{
@@ -126,7 +126,7 @@ void main(){
     await tester.showKeyboard(input);
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pump();
-    expect(commands,contains({'type':'key','name':'Escape'}));
+    expect(commands.last,{'type':'key','name':'Escape'});
   });
 }
 
