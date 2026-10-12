@@ -91,15 +91,19 @@ class _KakaPullToRefreshState extends State<KakaPullToRefresh>
     _springTo(hold);
     if (!_reduced) _spinner.repeat();
     final started = DateTime.now();
+    var succeeded = false;
     try {
       await widget.onRefresh();
+      succeeded = true;
+    } catch (_) {
+      // The parent owns the user-facing error state; never leave the gesture
+      // controller running or report an unsuccessful request as a new update.
+    } finally {
       final remaining = widget.minimumLoading -
           DateTime.now().difference(started);
       if (remaining > Duration.zero) await Future<void>.delayed(remaining);
-      if (!mounted || epoch != _epoch) return;
-      widget.onComplete?.call();
-    } finally {
       if (mounted && epoch == _epoch) {
+        if (succeeded) widget.onComplete?.call();
         _spinner.stop();
         setState(() => _refreshing = false);
         _springTo(0);
@@ -320,8 +324,14 @@ class _KakaNavGlyph extends StatelessWidget {
         color: selected ? Colors.white : KColors.muted,
       ),
       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Icon(icon, size: 20,
-            color: selected ? Colors.white : KColors.ink),
+        TweenAnimationBuilder<Color?>(
+          tween: ColorTween(
+            begin: selected ? KColors.ink : Colors.white,
+            end: selected ? Colors.white : KColors.ink),
+          duration: kakaReduceMotion(context)
+              ? Duration.zero : const Duration(milliseconds: 280),
+          builder:(context,color,_)=>Icon(icon,size:20,color:color),
+        ),
         const SizedBox(height: 3),
         Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
       ]),
