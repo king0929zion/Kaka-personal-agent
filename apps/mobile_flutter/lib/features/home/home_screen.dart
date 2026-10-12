@@ -406,7 +406,7 @@ class _HomeScreenState extends State<HomeScreen> {
     padding:const EdgeInsets.symmetric(horizontal:21),
     child:Row(children:[
       KakaGlassSurface(radius:39,padding:const EdgeInsets.all(7),
-        sigma:17,child:SizedBox(width:162,height:52,
+        sigma:0,child:SizedBox(width:162,height:52,
           child:Stack(children:[
             // Only the pill's transform changes during tab switching.
             // AnimatedPositioned relaid out this entire navigation Stack
