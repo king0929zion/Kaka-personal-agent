@@ -7,6 +7,7 @@ import '../../design/widgets.dart';
 import '../avatar/avatar_editor.dart';
 import '../routines/routines_screen.dart';
 import '../mcp/mcp_screen.dart';
+import '../memory/memory_screen.dart';
 import '../avatar/avatar_settings.dart';
 
 class AgentSettingsScreen extends StatefulWidget {
@@ -155,6 +156,9 @@ class _AgentSettingsScreenState extends State<AgentSettingsScreen> {
           KakaField(controller:instructions,label:'Instructions',maxLines:6),
           const SizedBox(height:25),
           KakaSection(title:'PREFERENCES',child:Column(children:[
+            KakaRow(title:'Memory',icon:LucideIcons.notebookText,
+              onTap:()=>Navigator.push(context,MaterialPageRoute<void>(
+                builder:(_)=>MemoryScreen(api:widget.api,botId:widget.bot.id)))),
             KakaRow(title:'MCP tools',icon:LucideIcons.plug,
               onTap:()=>Navigator.push(context,MaterialPageRoute<void>(
                 builder:(_)=>McpScreen(api:widget.api,botId:widget.bot.id)))),

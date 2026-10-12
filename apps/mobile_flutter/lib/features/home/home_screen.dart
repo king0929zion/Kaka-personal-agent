@@ -15,6 +15,7 @@ import '../integrations/integrations_screen.dart';
 import '../mcp/mcp_screen.dart';
 import '../search/search_screen.dart';
 import '../activity/activity_screen.dart';
+import '../memory/memory_screen.dart';
 import '../agents/agent_settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -399,6 +400,9 @@ class _HomeScreenState extends State<HomeScreen> {
     ])),
     const SizedBox(height:20),
     KakaSection(title:'APP',child:Column(children:[
+      KakaRow(title:'Memory',icon:LucideIcons.notebookText,
+        onTap:()=>Navigator.push(context,MaterialPageRoute<void>(
+          builder:(_)=>MemoryScreen(api:widget.app.api)))),
       KakaRow(title:'Activity',icon:LucideIcons.activity,
         onTap:()=>Navigator.push(context,MaterialPageRoute<void>(
           builder:(_)=>ActivityScreen(app:widget.app)))),

@@ -37,8 +37,8 @@ class OrganicAvatar extends StatefulWidget {
 }
 class _OrganicAvatarState extends State<OrganicAvatar>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
-  late final AnimationController _controller = AnimationController(
-    vsync: this, duration: const Duration(seconds: 9));
+  // Static list avatars allocate no AnimationController / Ticker.
+  AnimationController? _controller;
   bool _foreground = true;
   bool _tickerEnabled = true;
   bool _reduceMotion = false;
@@ -85,9 +85,12 @@ class _OrganicAvatarState extends State<OrganicAvatar>
 
   void _updateTicker() {
     if (_shouldAnimate) {
-      if (!_controller.isAnimating) _controller.repeat();
+      final animation=_controller ??= AnimationController(
+        vsync:this,duration:const Duration(seconds:9));
+      if (!animation.isAnimating) animation.repeat();
     } else {
-      if (_controller.isAnimating) _controller.stop();
+      final animation=_controller;
+      if (animation != null && animation.isAnimating) animation.stop();
     }
   }
 
@@ -95,24 +98,33 @@ class _OrganicAvatarState extends State<OrganicAvatar>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     PerformancePrefs.lowPower.removeListener(_onPerformanceChange);
-    _controller.dispose();
+    _controller?.dispose();
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) => RepaintBoundary(
-    child: SizedBox(width: widget.size, height: widget.size,
-      child: AnimatedBuilder(animation: _controller,
-        builder: (context, child) => CustomPaint(
-          painter: _AvatarPainter(
-            t: _shouldAnimate ? _controller.value * 9 : 0,
-            shapeIndex: widget.shapeIndex,
-            expressionIndex: widget.expressionIndex, color: widget.color,
-            working: widget.working, stateId: widget.stateId,
-            reducedMotion: !_shouldAnimate),
-        )),
-    ),
+  Widget _picture(double t) => CustomPaint(
+    painter:_AvatarPainter(
+      t:t,
+      shapeIndex:widget.shapeIndex,
+      expressionIndex:widget.expressionIndex,
+      color:widget.color,
+      working:widget.working,
+      stateId:widget.stateId,
+      reducedMotion:!_shouldAnimate),
   );
+
+  @override
+  Widget build(BuildContext context) {
+    final animation=_controller;
+    return RepaintBoundary(child:SizedBox(
+      width:widget.size,height:widget.size,
+      child:animation==null
+        ?_picture(0)
+        :AnimatedBuilder(animation:animation,
+          builder:(context,child)=>_picture(
+            _shouldAnimate ? animation.value*9 : 0)),
+    ));
+  }
 }
 
 class _AvatarPainter extends CustomPainter {

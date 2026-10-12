@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../design/theme.dart';
@@ -13,7 +14,22 @@ class AvatarProfile {
 }
 class AvatarRepository {
   static const _store=FlutterSecureStorage();
-  static final changed=ValueNotifier<int>(0);
+  // A per-Agent subscription avoids rebuilding every visible avatar when
+  // one profile is loaded/edited. Only active widgets retain listeners.
+  static final _listeners=<String,Set<VoidCallback>>{};
+  static void subscribe(String id, VoidCallback listener) =>
+      _listeners.putIfAbsent(id,()=> <VoidCallback>{}).add(listener);
+  static void unsubscribe(String id, VoidCallback listener) {
+    final listeners=_listeners[id];
+    listeners?.remove(listener);
+    if(listeners?.isEmpty??false)_listeners.remove(id);
+  }
+  static void _notify(String id) {
+    for(final callback in List<VoidCallback>.from(
+      _listeners[id]??const <VoidCallback>{})){
+      callback();
+    }
+  }
   static final _cache=<String,AvatarProfile>{};
   static final _loading=<String,Future<AvatarProfile>>{};
   static const _cacheLimit = 96;
@@ -35,6 +51,20 @@ class AvatarRepository {
     }
     return _loading.putIfAbsent(botId,() async {
       try {
+        // New installs need one secure-storage read per Agent. The old four-key
+        // format is lazily migrated without losing saved customisations.
+        final packed=await _store.read(key:'kaka.avatar.$botId.profile');
+        if(packed!=null) {
+          final value=Map<String,dynamic>.from(jsonDecode(packed) as Map);
+          final profile=AvatarProfile(
+            shape:(value['shape'] as num?)?.toInt()??0,
+            expression:(value['expression'] as num?)?.toInt()??0,
+            color:(value['color'] as num?)?.toInt()??-1,
+            stateIndex:(value['stateIndex'] as num?)?.toInt()??0);
+          _remember(botId,profile);
+          _notify(botId);
+          return profile;
+        }
         final entries=await Future.wait([
           _store.read(key:'kaka.avatar.$botId.shape'),
           _store.read(key:'kaka.avatar.$botId.expression'),
@@ -47,12 +77,12 @@ class AvatarRepository {
           color:int.tryParse(entries[2]??'')??-1,
           stateIndex:int.tryParse(entries[3]??'')??0);
         _remember(botId,result);
-        changed.value++;
+        _notify(botId);
         return result;
       }catch(_){
         const result=AvatarProfile();
         _remember(botId,result);
-        changed.value++;
+        _notify(botId);
         return result;
       }finally{
         _loading.remove(botId);
@@ -60,14 +90,15 @@ class AvatarRepository {
     });
   }
   static Future<void> save(String botId,AvatarProfile profile) async {
-    await Future.wait([
-      _store.write(key:'kaka.avatar.$botId.shape',value:'${profile.shape}'),
-      _store.write(key:'kaka.avatar.$botId.expression',value:'${profile.expression}'),
-      _store.write(key:'kaka.avatar.$botId.color',value:'${profile.color}'),
-      _store.write(key:'kaka.avatar.$botId.state',value:'${profile.stateIndex}'),
-    ]);
+    final encoded=jsonEncode({
+      'shape':profile.shape,
+      'expression':profile.expression,
+      'color':profile.color,
+      'stateIndex':profile.stateIndex,
+    });
+    await _store.write(key:'kaka.avatar.$botId.profile',value:encoded);
     _remember(botId,profile);
-    changed.value++;
+    _notify(botId);
   }
 }
 
@@ -82,25 +113,36 @@ class AgentAvatar extends StatefulWidget {
   State<AgentAvatar> createState()=>_AgentAvatarState();
 }
 class _AgentAvatarState extends State<AgentAvatar> {
+  void _onChanged(){if(mounted)setState((){});}
   @override
-  void initState(){super.initState();unawaited(AvatarRepository.load(widget.botId));}
+  void initState(){
+    super.initState();
+    AvatarRepository.subscribe(widget.botId,_onChanged);
+    unawaited(AvatarRepository.load(widget.botId));
+  }
   @override
   void didUpdateWidget(AgentAvatar oldWidget){
     super.didUpdateWidget(oldWidget);
-    if(oldWidget.botId!=widget.botId)unawaited(AvatarRepository.load(widget.botId));
+    if(oldWidget.botId!=widget.botId){
+      AvatarRepository.unsubscribe(oldWidget.botId,_onChanged);
+      AvatarRepository.subscribe(widget.botId,_onChanged);
+      unawaited(AvatarRepository.load(widget.botId));
+    }
   }
   @override
-  Widget build(BuildContext context)=>ValueListenableBuilder<int>(
-    valueListenable:AvatarRepository.changed,
-    builder:(context,revision,child){
-      final profile=AvatarRepository.cached(widget.botId)??const AvatarProfile();
-      final color=profile.color>=0
-        ? OrganicPresets.colors[profile.color%OrganicPresets.colors.length]
-        : widget.fallbackColor;
-      return OrganicAvatar(size:widget.size,
-        shapeIndex:profile.shape,expressionIndex:profile.expression,
-        color:color,working:widget.working,
-        stateId:OrganicPresets.states[profile.stateIndex%OrganicPresets.states.length]);
-    },
-  );
+  void dispose(){
+    AvatarRepository.unsubscribe(widget.botId,_onChanged);
+    super.dispose();
+  }
+  @override
+  Widget build(BuildContext context){
+    final profile=AvatarRepository.cached(widget.botId)??const AvatarProfile();
+    final color=profile.color>=0
+      ? OrganicPresets.colors[profile.color%OrganicPresets.colors.length]
+      : widget.fallbackColor;
+    return OrganicAvatar(size:widget.size,
+      shapeIndex:profile.shape,expressionIndex:profile.expression,
+      color:color,working:widget.working,
+      stateId:OrganicPresets.states[profile.stateIndex%OrganicPresets.states.length]);
+  }
 }

@@ -106,15 +106,30 @@ class ThreadController extends ChangeNotifier {
       return;
     }
     var messages = List<KakaMessage>.from(old.messages);
+    var olderCursor = old.olderCursor;
     var runStatus = old.runStatus;
     if (e.type == 'thread.cleared') {
       messages = [];
+      olderCursor = null;
       runStatus = null;
     } else if (e.type == 'thread.message.created' || e.type == 'thread.message.updated') {
       final id = '${e.payload['messageId'] ?? e.id ?? 'event:$seq'}';
       messages.removeWhere((m)=>m.id == 'progress:${e.runId ?? botId}');
-      final data = <String, dynamic>{...e.payload,'id':id,
-        'botId':e.botId ?? e.payload['botId']};
+      final existing = messages.where((m) => m.id == id).firstOrNull;
+      final data = <String, dynamic>{
+        ...e.payload,
+        'id': id,
+        // Updates can be partial, e.g. to close a voice-call card.
+        if (e.payload['blocks'] == null && existing != null) 'blocks': existing.blocks,
+        if (e.payload['role'] == null && existing != null) 'role':existing.role,
+        if (e.payload['replyQuote'] == null && existing != null &&
+            existing.replyQuote != null) 'replyQuote':existing.replyQuote,
+        if (e.payload['replyToMessageId'] == null && existing != null &&
+            existing.replyToMessageId != null)
+          'replyToMessageId':existing.replyToMessageId,
+        'runId':e.runId ?? e.payload['runId'] ?? existing?.runId,
+        'botId':e.botId ?? e.payload['botId'] ?? existing?.botId,
+      };
       final message = KakaMessage.fromJson(data);
       final idx = messages.indexWhere((m) => m.id == id);
       if (idx < 0) { messages.add(message); }
@@ -141,7 +156,7 @@ class ThreadController extends ChangeNotifier {
       }
     }
     snapshot = KakaThread(threadId:old.threadId, cursor:seq,
-      olderCursor:old.olderCursor, messages:messages, runStatus:runStatus);
+      olderCursor:olderCursor, messages:messages, runStatus:runStatus);
     _publish(streaming: e.type == 'thread.progress' ||
       e.type == 'agent.tool.called' ||
       e.type == 'thread.message.updated');
@@ -169,13 +184,28 @@ class ThreadController extends ChangeNotifier {
         final next = await api.thread(botId,group:group);
         if (_disposed) return;
         final existing = snapshot?.messages ?? const <KakaMessage>[];
-        final combined = {
-          for (final m in existing) m.id:m,
-          for (final m in next.messages) m.id:m,
-        };
-        snapshot = KakaThread(threadId:next.threadId,
-          cursor:next.cursor,olderCursor:next.olderCursor,
-          runStatus:next.runStatus,messages:combined.values.toList());
+        final current=snapshot;
+        // Never rewind a cursor (or reinsert cleared history) when an HTTP
+        // response races with newer SSE updates.
+        if (current != null && next.threadId != current.threadId) {
+          snapshot=next;
+        } else if (current != null && next.cursor < current.cursor) {
+          final combined = {
+            for (final m in next.messages) m.id:m,
+            for (final m in existing) m.id:m,
+          };
+          snapshot=KakaThread(threadId:current.threadId,
+            cursor:current.cursor,olderCursor:current.olderCursor,
+            runStatus:current.runStatus,messages:combined.values.toList());
+        } else {
+          final combined = {
+            for (final m in existing) m.id:m,
+            for (final m in next.messages) m.id:m,
+          };
+          snapshot=KakaThread(threadId:next.threadId,
+            cursor:next.cursor,olderCursor:next.olderCursor,
+            runStatus:next.runStatus,messages:combined.values.toList());
+        }
       } catch (_) {
         // Live SSE will converge to the accepted server state.
       }
@@ -215,7 +245,8 @@ class ThreadController extends ChangeNotifier {
       final m = Map<String, dynamic>.from(data as Map);
       final page = (m['messages'] is List ? m['messages'] as List : const [])
         .whereType<Map>().map((r) => KakaMessage.fromJson(Map<String,dynamic>.from(r))).toList();
-      if (_disposed) return;
+      if (_disposed || snapshot?.threadId != old.threadId ||
+          snapshot?.olderCursor != old.olderCursor) return;
       final merged = {for(final item in page) item.id:item, for(final item in snapshot!.messages) item.id:item};
       snapshot = KakaThread(threadId:old.threadId, cursor:snapshot!.cursor,
         olderCursor:(m['olderCursor'] as num?)?.toInt(),
