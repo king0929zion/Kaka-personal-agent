@@ -304,43 +304,51 @@ class _KakaLoadingDotsState extends State<KakaLoadingDots>
   }
   @override
   Widget build(BuildContext context)=>RepaintBoundary(
-    child:SizedBox(width:37,height:17,
-      child:AnimatedBuilder(animation:_controller,
-        builder:(_,__)=>CustomPaint(painter:_DotsPainter(
-          color:widget.color,phase:_controller.value))),
+    child:SizedBox(
+      width:37,height:17,
+      child:CustomPaint(painter:_DotsPainter(
+        color:widget.color,animation:_controller,
+      )),
     ),
   );
 }
 
 class _DotsPainter extends CustomPainter {
   final Color color;
-  final double phase;
-  _DotsPainter({required this.color,required this.phase});
+  final Animation<double> animation;
+
+  _DotsPainter({required this.color,required this.animation})
+      : super(repaint:animation);
+
   @override
-  void paint(Canvas canvas,Size size){
+  void paint(Canvas canvas,Size size) {
+    final phase=animation.value;
     final radius=math.min(3.2,size.width/13);
     final spacing=size.width/4;
+    final paint=Paint();
     for(var i=0;i<3;i++){
       final wave=math.sin((phase*2*math.pi)-(i*.75));
       final y=size.height/2-wave*2.1;
       final alpha=(.44+(wave+1)*.28).clamp(.35,1.0).toDouble();
+      paint.color=color.withValues(alpha:alpha);
       canvas.drawCircle(Offset(spacing*(i+1),y),
-        radius*(.84+.13*(wave+1)),
-        Paint()..color=color.withValues(alpha:alpha));
+        radius*(.84+.13*(wave+1)),paint);
     }
   }
   @override
   bool shouldRepaint(covariant _DotsPainter old)=>
-    old.phase!=phase || old.color!=color;
+    old.color!=color || old.animation!=animation;
 }
 
-/// A thin sliding capsule that preserves low visual weight in page headers.
+/// A thin sliding indicator that repaints only its own 3dp strip.
+/// Previously it relaid out a Stack and Positioned on every tick.
 class KakaLoadingRail extends StatefulWidget {
   final Color color;
   const KakaLoadingRail({super.key,this.color=KColors.ink});
   @override
   State<KakaLoadingRail> createState()=>_KakaLoadingRailState();
 }
+
 class _KakaLoadingRailState extends State<KakaLoadingRail>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller=AnimationController(
@@ -365,22 +373,47 @@ class _KakaLoadingRailState extends State<KakaLoadingRail>
     super.dispose();
   }
   @override
-  Widget build(BuildContext context)=>LayoutBuilder(builder:(ctx,c)=>
-    SizedBox(height:3,child:AnimatedBuilder(animation:_controller,
-      builder:(ctx,_) {
-        final length=c.maxWidth.isFinite?c.maxWidth:120.0;
-        final segment=math.max(12.0,length*.27);
-        final start=_controller.isAnimating
-          ?_controller.value*(length+segment)-segment:0.0;
-        return Stack(clipBehavior:Clip.hardEdge,children:[
-          Positioned.fill(child:DecoratedBox(decoration:BoxDecoration(
-            color:KColors.soft,borderRadius:BorderRadius.circular(5)))),
-          Positioned(left:start,top:0,width:segment,height:3,
-            child:DecoratedBox(decoration:BoxDecoration(
-              color:widget.color,borderRadius:BorderRadius.circular(5)))),
-        ]);
-      }),
-    ));
+  Widget build(BuildContext context)=>RepaintBoundary(
+    child:SizedBox(
+      height:3,
+      width:double.infinity,
+      child:CustomPaint(painter:_RailPainter(
+        animation:_controller,color:widget.color,
+      )),
+    ),
+  );
+}
+
+class _RailPainter extends CustomPainter {
+  final Animation<double> animation;
+  final Color color;
+  _RailPainter({required this.animation,required this.color})
+      : super(repaint:animation);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if(size.isEmpty) return;
+    final track=RRect.fromRectAndRadius(
+      Offset.zero & size,const Radius.circular(3));
+    canvas.drawRRect(track,Paint()..color=KColors.soft);
+    final segment=math.max(12.0,size.width*.27);
+    final start=animation.isAnimating
+      ?animation.value*(size.width+segment)-segment:0.0;
+    canvas.save();
+    canvas.clipRRect(track);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(start,0,segment,size.height),
+        const Radius.circular(3),
+      ),
+      Paint()..color=color,
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _RailPainter old)=>
+    old.color!=color || old.animation!=animation;
 }
 
 /// Compact visible toggle with an accessible 48 dp vertical target.
