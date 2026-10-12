@@ -10,8 +10,15 @@ from pathlib import Path
 import re
 path = Path('android/app/src/main/AndroidManifest.xml')
 text = path.read_text()
+if 'android.permission.RECORD_AUDIO' not in text:
+    text = text.replace('<application', '<uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <application', 1)
 if 'android.permission.INTERNET' not in text:
     text = text.replace('<application', '<uses-permission android:name="android.permission.INTERNET" />\n    <application', 1)
+if 'android.speech.RecognitionService' not in text:
+    text = text.replace('<application', '<queries>\n'
+        '        <intent><action android:name="android.speech.RecognitionService" /></intent>\n'
+        '        <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>\n'
+        '    </queries>\n    <application', 1)
 if 'android:usesCleartextTraffic' not in text:
     text = text.replace('<application', '<application android:usesCleartextTraffic="true"', 1)
 text = re.sub(r'android:icon="[^"]*"', 'android:icon="@drawable/kaka_launcher"', text)

@@ -16,6 +16,7 @@ import '../avatar/avatar_settings.dart';
 import '../avatar/avatar_editor.dart';
 import '../computer/computer_screen.dart';
 import '../groups/group_settings_screen.dart';
+import '../voice/device_voice_screen.dart';
 import 'thread_controller.dart';
 
 class ThreadScreen extends StatefulWidget {
@@ -324,6 +325,13 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           maxLines:1,overflow:TextOverflow.ellipsis,
           style:const TextStyle(fontSize:12,color:KColors.muted)),
       ])),
+      KakaIconButton(icon:LucideIcons.mic,size:40,tooltip:'Voice chat',
+        onTap:()async{
+          thread.pauseRealtime();
+          await Navigator.push(context,MaterialPageRoute<void>(builder:(_)=>
+            DeviceVoiceScreen(api:widget.api,bot:widget.bot,group:widget.group)));
+          if(mounted)unawaited(thread.load());
+        }),
       if(thread.canStop)KakaIconButton(icon:LucideIcons.square,
         filled:true,size:40,tooltip:'Stop generation',onTap:thread.stop),
       KakaIconButton(icon:LucideIcons.ellipsis,
