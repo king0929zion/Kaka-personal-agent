@@ -168,8 +168,8 @@ class KakaGlassSurface extends StatelessWidget {
           ? surface
           : BackdropFilter(
               filter: ImageFilter.blur(
-                sigmaX: sigma.clamp(0.0, 10.0),
-                sigmaY: sigma.clamp(0.0, 10.0),
+                sigmaX: sigma.clamp(0.0, 10.0).toDouble(),
+                sigmaY: sigma.clamp(0.0, 10.0).toDouble(),
               ),
               child: surface,
             ),
