@@ -15,6 +15,7 @@ import '../../design/widgets.dart';
 import '../avatar/avatar_settings.dart';
 import '../avatar/avatar_editor.dart';
 import '../computer/computer_screen.dart';
+import '../groups/group_settings_screen.dart';
 import 'thread_controller.dart';
 
 class ThreadScreen extends StatefulWidget {
@@ -306,6 +307,13 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
             Navigator.pop(context);
             Navigator.push(context,MaterialPageRoute<void>(
               builder:(_)=>AvatarEditor(bot:widget.bot)));}),
+          if(widget.group)KakaRow(title:'Group settings',icon:LucideIcons.users,
+            onTap:(){
+              Navigator.pop(context);
+              Navigator.push(context,MaterialPageRoute<bool>(builder:(_)=>
+                GroupSettingsScreen(api:widget.api,groupId:widget.bot.id)))
+                .then((changed){if(changed==true && mounted)Navigator.pop(context);});
+            }),
           if(!widget.group)KakaRow(title:'Open computer',icon:LucideIcons.monitor,onTap:(){
             Navigator.pop(context);
             Navigator.push(context,MaterialPageRoute<void>(builder:(_)=>
