@@ -48,17 +48,27 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     unawaited(thread.load());
   }
   void _onUpdate() {
-    final count = thread.messages.length;
-    if (count != lastCount) {
-      lastCount = count;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !scroll.hasClients) return;
-        if (scroll.position.maxScrollExtent-scroll.position.pixels < 260) {
-          scroll.animateTo(scroll.position.maxScrollExtent,
-            duration:const Duration(milliseconds:220),curve:Curves.easeOutCubic);
-        }
-      });
-    }
+    final count=thread.messages.length;
+    final firstLoad=lastCount==0 && count>0 && !scroll.hasClients;
+    final added=count>lastCount;
+    // Measure the old viewport BEFORE it is laid out with incoming messages.
+    // Measuring after a new message arrived made long replies appear to
+    // randomly jump or stop following, especially during SSE token updates.
+    final wasNearBottom=scroll.hasClients &&
+      scroll.position.maxScrollExtent-scroll.position.pixels<145;
+    lastCount=count;
+    if(!firstLoad && !wasNearBottom)return;
+    WidgetsBinding.instance.addPostFrameCallback((_){
+      if(!mounted||!scroll.hasClients)return;
+      final end=scroll.position.maxScrollExtent;
+      if(firstLoad || !added){
+        scroll.jumpTo(end);
+      }else{
+        scroll.animateTo(end,
+          duration:const Duration(milliseconds:210),
+          curve:Curves.easeOutCubic);
+      }
+    });
   }
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {

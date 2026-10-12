@@ -115,7 +115,10 @@ class _ComputerScreenState extends State<ComputerScreen>
       setState(()=>_desktopOpen=true);
       try {
         await Navigator.push<void>(context,MaterialPageRoute(
-          builder:(_)=>_DesktopView(url:url,title:widget.bot.name)));
+          builder:(_)=>_DesktopView(url:url,title:widget.bot.name,
+            api:widget.api,botId:widget.bot.id,
+            initiallyInControl:status['controlHolder']=='user' &&
+              status['controlBotId']==widget.bot.id)));
       } finally {
         _desktopOpen=false;
         if(mounted)unawaited(_refresh(silent:true));
@@ -210,7 +213,12 @@ class _ComputerScreenState extends State<ComputerScreen>
 class _DesktopView extends StatefulWidget {
   final Uri url;
   final String title;
-  const _DesktopView({required this.url,required this.title});
+  final KakaApi api;
+  final String botId;
+  final bool initiallyInControl;
+  const _DesktopView({required this.url,required this.title,
+    required this.api,required this.botId,
+    required this.initiallyInControl});
   @override
   State<_DesktopView> createState()=>_DesktopViewState();
 }
@@ -218,10 +226,12 @@ class _DesktopView extends StatefulWidget {
 class _DesktopViewState extends State<_DesktopView> {
   late final WebViewController controller;
   bool _keyboardReady=false;
+  bool _hasControl=false;
+  bool _controlBusy=false;
   int _pageGeneration=0;
 
   Future<void> _probeKeyboard(int generation) async {
-    for(var attempt=0;attempt<20;attempt++){
+    for(var attempt=0;attempt<65;attempt++){
       if(!mounted || generation!=_pageGeneration)return;
       try {
         final result=await controller.runJavaScriptReturningResult(
@@ -242,12 +252,14 @@ class _DesktopViewState extends State<_DesktopView> {
       }catch(_) {
         // The page may still be installing noVNC after onPageFinished.
       }
-      await Future<void>.delayed(const Duration(milliseconds:200));
+      await Future<void>.delayed(const Duration(milliseconds:250));
     }
   }
 
   Future<void> _sendKeyboard(Map<String,dynamic> command) async {
-    if(!_keyboardReady)return;
+    if(!_keyboardReady || !_hasControl){
+      throw const KakaApiException('Remote control is not active');
+    }
     // JSON is an expression here, not a quoted JS string. Escape the HTML
     // breakout and JS line separators to prevent injected script syntax.
     final json=jsonEncode(command)
@@ -258,9 +270,37 @@ class _DesktopViewState extends State<_DesktopView> {
       'window.rakazoComputerKeyboard?.run($json);true;');
   }
 
+  Future<void> _takeControl() async {
+    if(_controlBusy)return;
+    setState(()=>_controlBusy=true);
+    try {
+      await widget.api.rpc('computer/takeover',{'botId':widget.botId});
+      final data=await widget.api.rpc(
+        'computer/screenUrl',{'botId':widget.botId});
+      if(!mounted)return;
+      setState(()=>_hasControl=true);
+      final raw=data is Map?data['url']?.toString():null;
+      if(raw!=null && raw.isNotEmpty){
+        final url=resolveComputerScreenUri(Uri.parse(widget.api.baseUrl),raw);
+        if(url.toString()!=widget.url.toString()){
+          await controller.loadRequest(url);
+        }else{
+          await controller.reload();
+        }
+      }else{
+        await controller.reload();
+      }
+    }catch(e){
+      if(mounted)kakaNotice(context,'Could not take control: $e');
+    }finally{
+      if(mounted)setState(()=>_controlBusy=false);
+    }
+  }
+
   @override
   void initState(){
     super.initState();
+    _hasControl=widget.initiallyInControl;
     controller=WebViewController();
     controller.setJavaScriptMode(JavaScriptMode.unrestricted);
     controller.setNavigationDelegate(NavigationDelegate(
@@ -292,14 +332,22 @@ class _DesktopViewState extends State<_DesktopView> {
         Expanded(child:Text(widget.title,maxLines:1,
           overflow:TextOverflow.ellipsis,
           style:Theme.of(context).textTheme.titleLarge)),
+        if(!_hasControl)KakaIconButton(icon:LucideIcons.hand,
+          tooltip:'Take remote computer control',filled:true,
+          onTap:_controlBusy?null:_takeControl),
         KakaIconButton(icon:LucideIcons.refreshCw,
           onTap:()=>controller.reload()),
       ])),
       Expanded(child:WebViewWidget(controller:controller)),
-      ComputerKeyboardBar(enabled:_keyboardReady,send:_sendKeyboard),
-      if(!_keyboardReady)const Padding(
+      ComputerKeyboardBar(enabled:_keyboardReady && _hasControl,
+        send:_sendKeyboard),
+      if(!_hasControl)const Padding(
         padding:EdgeInsets.only(bottom:7),
-        child:Text('Keyboard available after desktop control connects',
+        child:Text('Tap the hand icon to enable remote keyboard and mouse.',
+          style:TextStyle(color:KColors.muted,fontSize:11))),
+      if(_hasControl && !_keyboardReady)const Padding(
+        padding:EdgeInsets.only(bottom:7),
+        child:Text('Connecting the remote keyboard…',
           style:TextStyle(color:KColors.muted,fontSize:11))),
     ])),
   );
