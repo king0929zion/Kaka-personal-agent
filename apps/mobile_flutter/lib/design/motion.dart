@@ -98,46 +98,53 @@ class KakaProgressiveBlur extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final lowPower = kakaReduceMotion(context);
-    final start = fromTop ? Alignment.topCenter : Alignment.bottomCenter;
-    final end = fromTop ? Alignment.bottomCenter : Alignment.topCenter;
+  Widget build(BuildContext context) => ValueListenableBuilder<bool>(
+        valueListenable: PerformancePrefs.lowPower,
+        builder: (context, lowPower, _) {
+          final reducedEffects =
+              lowPower || MediaQuery.disableAnimationsOf(context);
+          final start = fromTop ? Alignment.topCenter : Alignment.bottomCenter;
+          final end = fromTop ? Alignment.bottomCenter : Alignment.topCenter;
 
-    return IgnorePointer(
-      child: ClipRect(
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (!lowPower)
-              BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                child: const SizedBox.expand(),
-              ),
-            DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: start,
-                  end: end,
-                  stops: const [0, .26, .55, .78, 1],
-                  colors: [
-                    tint.withValues(alpha: lowPower ? .98 : .87),
-                    tint.withValues(alpha: .73),
-                    tint.withValues(alpha: .44),
-                    tint.withValues(alpha: .17),
-                    tint.withValues(alpha: 0),
-                  ],
-                ),
+          return IgnorePointer(
+            child: ClipRect(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (!reducedEffects)
+                    BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                      child: const SizedBox.expand(),
+                    ),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: start,
+                        end: end,
+                        stops: const [0, .26, .55, .78, 1],
+                        colors: [
+                          tint.withValues(
+                            alpha: reducedEffects ? .98 : .87,
+                          ),
+                          tint.withValues(alpha: .73),
+                          tint.withValues(alpha: .44),
+                          tint.withValues(alpha: .17),
+                          tint.withValues(alpha: 0),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
+          );
+        },
+      );
 }
 
 /// Floating surfaces use one clipped blur at most. In low-power / reduced
-/// effects mode we skip the filter entirely rather than running sigma=0.
+/// effects mode we remove the filter layer entirely. The notifier ensures
+/// that a settings toggle updates the visible chrome in the same frame.
 class KakaGlassSurface extends StatelessWidget {
   final Widget child;
   final double radius;
@@ -153,26 +160,32 @@ class KakaGlassSurface extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final lowPower = kakaReduceMotion(context);
-    final surface = DecoratedBox(
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: lowPower ? .97 : .87),
-      ),
-      child: Padding(padding: padding, child: child),
-    );
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(radius),
-      child: lowPower || sigma <= 0
-          ? surface
-          : BackdropFilter(
-              filter: ImageFilter.blur(
-                sigmaX: sigma.clamp(0.0, 10.0).toDouble(),
-                sigmaY: sigma.clamp(0.0, 10.0).toDouble(),
+  Widget build(BuildContext context) => ValueListenableBuilder<bool>(
+        valueListenable: PerformancePrefs.lowPower,
+        builder: (context, lowPower, _) {
+          final reducedEffects =
+              lowPower || MediaQuery.disableAnimationsOf(context);
+          final surface = DecoratedBox(
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(
+                alpha: reducedEffects ? .97 : .87,
               ),
-              child: surface,
             ),
-    );
-  }
+            child: Padding(padding: padding, child: child),
+          );
+
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(radius),
+            child: reducedEffects || sigma <= 0
+                ? surface
+                : BackdropFilter(
+                    filter: ImageFilter.blur(
+                      sigmaX: sigma.clamp(0.0, 10.0).toDouble(),
+                      sigmaY: sigma.clamp(0.0, 10.0).toDouble(),
+                    ),
+                    child: surface,
+                  ),
+          );
+        },
+      );
 }
