@@ -26,6 +26,8 @@ class ThreadController extends ChangeNotifier {
   bool fetchingMore = false;
   StreamSubscription<KakaThreadEvent>? _events;
   Timer? _renderDebounce;
+  Future<void>? _activeLoad;
+  int _activeLoadEpoch = -1;
   int _epoch = 0;
   bool _disposed = false;
 
@@ -46,22 +48,60 @@ class ThreadController extends ChangeNotifier {
     });
   }
 
-  Future<void> load() async {
+  /// Duplicate refresh requests share one server fetch and one SSE subscription.
+  /// A pause/resume changes _epoch, allowing a new fetch while discarding the
+  /// obsolete response without flashing or replacing the current conversation.
+  Future<void> load() {
+    if (_disposed) return Future<void>.value();
+    if (_activeLoad != null && _activeLoadEpoch == _epoch) {
+      return _activeLoad!;
+    }
     final epoch = ++_epoch;
+    _activeLoadEpoch = epoch;
+    final work = _loadSnapshot(epoch);
+    _activeLoad = work;
+    work.whenComplete(() {
+      if (identical(_activeLoad, work)) {
+        _activeLoad = null;
+        _activeLoadEpoch = -1;
+      }
+    });
+    return work;
+  }
+
+  Future<void> _loadSnapshot(int epoch) async {
     _events?.cancel();
-    error = null;
-    notifyListeners();
-    try {
-      final next = await api.thread(botId,group:group);
-      if (_disposed || epoch != _epoch) return;
-      snapshot = next;
+    _events = null;
+    if (error != null) {
+      error = null;
       notifyListeners();
-      _listen(next.cursor, epoch);
-      unawaited(api.rpc('threads/markRead', {...target}).catchError((Object _) => null));
+    }
+    try {
+      final next = await api.thread(botId, group: group);
+      if (_disposed || epoch != _epoch) return;
+      final old = snapshot;
+      // A cursor identifies the server-side revision. Retain the existing
+      // message objects for a no-op refresh so cached Markdown remains valid.
+      final unchanged = old != null &&
+          old.threadId == next.threadId &&
+          old.cursor == next.cursor &&
+          old.olderCursor == next.olderCursor &&
+          old.runStatus == next.runStatus &&
+          old.messages.length == next.messages.length;
+      if (!unchanged) {
+        snapshot = next;
+        notifyListeners();
+      }
+      _listen(snapshot!.cursor, epoch);
+      unawaited(api.rpc('threads/markRead', {...target})
+          .catchError((Object _) => null));
     } catch (e) {
       if (_disposed || epoch != _epoch) return;
-      error = e.toString();
-      notifyListeners();
+      final message = e.toString();
+      if (error != message) {
+        error = message;
+        notifyListeners();
+      }
     }
   }
 
