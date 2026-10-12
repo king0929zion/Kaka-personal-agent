@@ -303,7 +303,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     resizeToAvoidBottomInset:true,
     body:SafeArea(child:Column(children:[
       AnimatedBuilder(animation:thread,builder:(context,_)=>_header()),
-      Expanded(child:AnimatedBuilder(animation:thread,builder:(context,_) =>
+      Expanded(child:KakaContentWidth(child:AnimatedBuilder(animation:thread,builder:(context,_) =>
         thread.snapshot == null
           ? Center(child:thread.error!=null
               ? Column(mainAxisSize:MainAxisSize.min,children:[
@@ -323,7 +323,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                 return index < 0 ? null : index + 1;
               },
               cacheExtent:170,
-              padding:const EdgeInsets.fromLTRB(20,9,20,24),
+              padding:const EdgeInsets.fromLTRB(KLayout.pageGutter,9,KLayout.pageGutter,24),
               itemCount:thread.messages.length+1,
               itemBuilder:(ctx,i) {
                 if(i==0) {
@@ -346,7 +346,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                 final message=thread.messages[i-1];
                 return _cachedMessageView(message);
               },
-            ))),
+            )))),
       AnimatedBuilder(animation:thread,builder:(context,_) =>
         thread.error==null?const SizedBox.shrink():
           Padding(padding:const EdgeInsets.fromLTRB(20,0,20,6),
@@ -364,11 +364,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     return KColors.ink;
   }
 
-  Widget _header() => Container(
-    padding:const EdgeInsets.fromLTRB(13,6,16,9),
-    child:Row(children:[
-      KakaIconButton(icon:LucideIcons.arrowLeft,onTap:()=>Navigator.pop(context)),
-      const SizedBox(width:6),
+  Widget _header() => KakaPageHeader(
+    title:Row(children:[
       AgentAvatar(botId:widget.bot.id,size:38,fallbackColor:_botColor(),working:
         ['running','leased'].contains(thread.snapshot?.runStatus)),
       const SizedBox(width:10),
@@ -380,17 +377,20 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           maxLines:1,overflow:TextOverflow.ellipsis,
           style:const TextStyle(fontSize:12,color:KColors.muted)),
       ])),
-      KakaIconButton(icon:LucideIcons.mic,size:40,tooltip:'Voice chat',
-        onTap:()async{
-          thread.pauseRealtime();
-          await Navigator.push(context,MaterialPageRoute<void>(builder:(_)=>
-            DeviceVoiceScreen(api:widget.api,bot:widget.bot,group:widget.group)));
-          if(mounted)unawaited(thread.load());
-        }),
+    ]),
+    actions:[
+      if(MediaQuery.sizeOf(context).width >= 380)
+        KakaIconButton(icon:LucideIcons.mic,size:40,tooltip:'Voice chat',
+          onTap:_openVoice),
       if(thread.canStop)KakaIconButton(icon:LucideIcons.square,
         filled:true,size:40,tooltip:'Stop generation',onTap:thread.stop),
-      KakaIconButton(icon:LucideIcons.ellipsis,
+      KakaIconButton(icon:LucideIcons.ellipsis,tooltip:'More actions',
         onTap:()=>kakaSheet<void>(context,Column(mainAxisSize:MainAxisSize.min,children:[
+          if(MediaQuery.sizeOf(context).width < 380)
+            KakaRow(title:'Voice chat',icon:LucideIcons.mic,onTap:(){
+              Navigator.pop(context);
+              _openVoice();
+            }),
           KakaRow(title:'Customize avatar',icon:LucideIcons.smile,onTap:(){
             Navigator.pop(context);
             Navigator.push(context,MaterialPageRoute<void>(
@@ -424,8 +424,15 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
             _confirmClear();
           }),
         ]))),
-    ]),
+    ],
   );
+
+  Future<void> _openVoice() async {
+    thread.pauseRealtime();
+    await Navigator.push(context,MaterialPageRoute<void>(builder:(_)=>
+      DeviceVoiceScreen(api:widget.api,bot:widget.bot,group:widget.group)));
+    if(mounted)unawaited(thread.load());
+  }
 
   Future<void> _confirmClear() async {
     final confirmed = await kakaSheet<bool>(context,Column(
@@ -768,7 +775,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     ]));
   }
 
-  Widget _composer() => Padding(padding:const EdgeInsets.fromLTRB(16,5,16,12),
+  Widget _composer() => KakaContentWidth(child:Padding(padding:const EdgeInsets.fromLTRB(KLayout.compactGutter,5,KLayout.compactGutter,12),
       child:Column(mainAxisSize:MainAxisSize.min,children:[
         if(replyingTo!=null) Container(
           margin:const EdgeInsets.only(bottom:8),
@@ -806,11 +813,12 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         radius:32,sigma:0,
         padding:const EdgeInsets.fromLTRB(13,9,8,9),
         child:Row(crossAxisAlignment:CrossAxisAlignment.end,children:[
-          KakaIconButton(icon:LucideIcons.plus,size:40,onTap:pickAttachment),
+          KakaIconButton(icon:LucideIcons.plus,size:40,tooltip:'Add attachment',onTap:pickAttachment),
           const SizedBox(width:5),
           Expanded(child:TextField(controller:draft,
             minLines:1,maxLines:6,keyboardType:TextInputType.multiline,
-            style:const TextStyle(fontSize:15,color:KColors.ink),
+            style:const TextStyle(fontSize:16,height:1.35,color:KColors.ink),
+            textCapitalization:TextCapitalization.sentences,
             decoration:const InputDecoration(
               hintText:'Message…',hintStyle:TextStyle(color:KColors.muted),
               border:InputBorder.none,isDense:true,
@@ -821,11 +829,11 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
               valueListenable:draft,
               builder:(context,value,_)=>KakaIconButton(
                 icon:thread.sending?LucideIcons.clock:LucideIcons.arrowUp,
-                filled:true,size:42,
+                filled:true,size:42,tooltip:thread.sending?'Sending':'Send message',
                 onTap:thread.sending||(value.text.trim().isEmpty&&attachments.isEmpty)?null:send),
             )),
         ]),
       ),
       ]),
-    );
+    ));
 }
