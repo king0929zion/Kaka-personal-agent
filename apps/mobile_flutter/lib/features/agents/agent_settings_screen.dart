@@ -131,7 +131,7 @@ class _AgentSettingsScreenState extends State<AgentSettingsScreen> {
   }
 
   @override
-  Widget build(BuildContext context)=>Scaffold(
+  Widget build(BuildContext context)=>KakaDepthStage(child:Scaffold(
     backgroundColor:KColors.bg,
     body:SafeArea(child:Column(children:[
       KakaPageHeader(
@@ -191,5 +191,5 @@ class _AgentSettingsScreenState extends State<AgentSettingsScreen> {
           KakaButton(title:'Archive agent',filled:false,onPressed:_archive),
         ]))),
     ])),
-  );
+  ));
 }
