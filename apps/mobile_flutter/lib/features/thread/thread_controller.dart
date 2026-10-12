@@ -26,6 +26,8 @@ class ThreadController extends ChangeNotifier {
   bool fetchingMore = false;
   StreamSubscription<KakaThreadEvent>? _events;
   Timer? _renderDebounce;
+  Future<void>? _activeLoad;
+  int _activeLoadEpoch = -1;
   int _epoch = 0;
   bool _disposed = false;
 
@@ -46,23 +48,92 @@ class ThreadController extends ChangeNotifier {
     });
   }
 
-  Future<void> load() async {
+  /// Duplicate refresh requests share one server fetch and one SSE subscription.
+  /// A pause/resume changes _epoch, allowing a new fetch while discarding the
+  /// obsolete response without flashing or replacing the current conversation.
+  Future<void> load() {
+    if (_disposed) return Future<void>.value();
+    if (_activeLoad != null && _activeLoadEpoch == _epoch) {
+      return _activeLoad!;
+    }
     final epoch = ++_epoch;
+    _activeLoadEpoch = epoch;
+    final work = _loadSnapshot(epoch);
+    _activeLoad = work;
+    work.whenComplete(() {
+      if (identical(_activeLoad, work)) {
+        _activeLoad = null;
+        _activeLoadEpoch = -1;
+      }
+    });
+    return work;
+  }
+
+  Future<void> _loadSnapshot(int epoch) async {
     _events?.cancel();
-    error = null;
-    notifyListeners();
-    try {
-      final next = await api.thread(botId,group:group);
-      if (_disposed || epoch != _epoch) return;
-      snapshot = next;
-      notifyListeners();
-      _listen(next.cursor, epoch);
-      unawaited(api.rpc('threads/markRead', {...target}).catchError((Object _) => null));
-    } catch (e) {
-      if (_disposed || epoch != _epoch) return;
-      error = e.toString();
+    _events = null;
+    if (error != null) {
+      error = null;
       notifyListeners();
     }
+    try {
+      final next = await api.thread(botId, group: group);
+      if (_disposed || epoch != _epoch) return;
+      final old = snapshot;
+      // Cursor identifies the server-side message revision. Reopening the
+      // app with the same revision must not discard pages loaded earlier or
+      // reconstruct existing Markdown and image widget trees.
+      final unchanged = old != null &&
+          old.threadId == next.threadId &&
+          old.cursor == next.cursor &&
+          old.runStatus == next.runStatus;
+      if (!unchanged) {
+        // A stale HTTP snapshot must never replace newer SSE events.
+        if (old != null &&
+            old.threadId == next.threadId &&
+            next.cursor < old.cursor) {
+          // Retain live messages and reconnect from the newest cursor.
+        } else {
+          snapshot = _preserveOlderHistory(next, old);
+          notifyListeners();
+        }
+      }
+      _listen(snapshot!.cursor, epoch);
+      unawaited(api.rpc('threads/markRead', {...target})
+          .catchError((Object _) => null));
+    } catch (e) {
+      if (_disposed || epoch != _epoch) return;
+      final message = e.toString();
+      if (error != message) {
+        error = message;
+        notifyListeners();
+      }
+    }
+  }
+
+
+  /// HTTP refreshes generally return only the latest page. If that page
+  /// overlaps the already displayed timeline, retain the older prefix that
+  /// the user explicitly fetched. A new/cleared thread (or a disjoint page)
+  /// intentionally does not resurrect old messages.
+  KakaThread _preserveOlderHistory(KakaThread next, KakaThread? old) {
+    if (old == null || old.threadId != next.threadId ||
+        old.messages.isEmpty || next.messages.isEmpty) return next;
+    final newerIds = {for (final m in next.messages) m.id};
+    final overlapIndex = old.messages.indexWhere(
+      (message) => newerIds.contains(message.id),
+    );
+    if (overlapIndex <= 0) return next;
+    final prefix = old.messages.take(overlapIndex)
+        .where((m) => !newerIds.contains(m.id)).toList();
+    if (prefix.isEmpty) return next;
+    return KakaThread(
+      threadId: next.threadId,
+      cursor: next.cursor,
+      olderCursor: old.olderCursor,
+      runStatus: next.runStatus,
+      messages: [...prefix, ...next.messages],
+    );
   }
 
   void pauseRealtime() {
@@ -115,13 +186,16 @@ class ThreadController extends ChangeNotifier {
     } else if (e.type == 'thread.message.created' || e.type == 'thread.message.updated') {
       final id = '${e.payload['messageId'] ?? e.id ?? 'event:$seq'}';
       messages.removeWhere((m)=>m.id == 'progress:${e.runId ?? botId}');
-      final existing = messages.where((m) => m.id == id).firstOrNull;
+      final idx = messages.indexWhere((m) => m.id == id);
+      final existing = idx < 0 ? null : messages[idx];
       final data = <String, dynamic>{
         ...e.payload,
         'id': id,
         // Updates can be partial, e.g. to close a voice-call card.
         if (e.payload['blocks'] == null && existing != null) 'blocks': existing.blocks,
         if (e.payload['role'] == null && existing != null) 'role':existing.role,
+        if (e.payload['createdAt'] == null && existing != null &&
+            existing.createdAt != null) 'createdAt':existing.createdAt,
         if (e.payload['replyQuote'] == null && existing != null &&
             existing.replyQuote != null) 'replyQuote':existing.replyQuote,
         if (e.payload['replyToMessageId'] == null && existing != null &&
@@ -131,7 +205,6 @@ class ThreadController extends ChangeNotifier {
         'botId':e.botId ?? e.payload['botId'] ?? existing?.botId,
       };
       final message = KakaMessage.fromJson(data);
-      final idx = messages.indexWhere((m) => m.id == id);
       if (idx < 0) { messages.add(message); }
       else { messages[idx] = message; }
     } else if(e.type == 'run.waiting_input' || e.type == 'computer.takeover.requested') {
