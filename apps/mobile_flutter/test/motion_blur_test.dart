@@ -28,6 +28,20 @@ void main() {
     expect(find.byType(BackdropFilter), findsNothing);
   });
 
+  testWidgets('progressive blur follows a live power preference toggle',
+      (tester) async {
+    await tester.pumpWidget(_host(const KakaProgressiveBlur()));
+    expect(find.byType(BackdropFilter), findsOneWidget);
+
+    PerformancePrefs.lowPower.value = true;
+    await tester.pump();
+    expect(find.byType(BackdropFilter), findsNothing);
+
+    PerformancePrefs.lowPower.value = false;
+    await tester.pump();
+    expect(find.byType(BackdropFilter), findsOneWidget);
+  });
+
   testWidgets('rounded glass surface caps repeated high-sigma samples',
       (tester) async {
     await tester.pumpWidget(_host(
@@ -37,6 +51,18 @@ void main() {
       find.byType(BackdropFilter),
     );
     expect(filter.enabled, isTrue);
+  });
+
+  testWidgets('glass filter follows live power preference changes',
+      (tester) async {
+    await tester.pumpWidget(_host(
+      const KakaGlassSurface(sigma: 14, child: Text('Composer')),
+    ));
+    expect(find.byType(BackdropFilter), findsOneWidget);
+
+    PerformancePrefs.lowPower.value = true;
+    await tester.pump();
+    expect(find.byType(BackdropFilter), findsNothing);
   });
 
   testWidgets('rounded glass surface has zero filters in low-power mode',
