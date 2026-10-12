@@ -104,29 +104,66 @@ class KakaButton extends StatelessWidget {
   );
 }
 
-class KakaField extends StatelessWidget {
+class KakaField extends StatefulWidget {
   final TextEditingController controller;
   final String label;
   final String hint;
   final bool obscure;
   final int maxLines;
   final TextInputType? keyboardType;
-  const KakaField({super.key, required this.controller, required this.label,
-    this.hint = '', this.obscure = false, this.maxLines = 1, this.keyboardType});
+  const KakaField({super.key,required this.controller,required this.label,
+    this.hint='',this.obscure=false,this.maxLines=1,this.keyboardType});
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: KColors.muted)),
-      const SizedBox(height: 9),
-      TextField(
-        controller: controller, obscureText: obscure, maxLines: maxLines, keyboardType: keyboardType,
-        style: const TextStyle(fontSize: 16, color: KColors.ink),
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: const TextStyle(color: KColors.muted),
-          filled: true, fillColor: KColors.soft,
-          contentPadding: const EdgeInsets.symmetric(vertical: 17, horizontal: 18),
-          border: OutlineInputBorder(borderSide: BorderSide.none, borderRadius: BorderRadius.circular(21)),
+  State<KakaField> createState()=>_KakaFieldState();
+}
+class _KakaFieldState extends State<KakaField> {
+  final FocusNode _focus=FocusNode();
+  bool _focused=false;
+  @override
+  void initState(){
+    super.initState();
+    _focus.addListener(_updateFocus);
+  }
+  void _updateFocus(){
+    if(mounted)setState(()=>_focused=_focus.hasFocus);
+  }
+  @override
+  void dispose(){
+    _focus.removeListener(_updateFocus);
+    _focus.dispose();
+    super.dispose();
+  }
+  @override
+  Widget build(BuildContext context)=>Column(
+    crossAxisAlignment:CrossAxisAlignment.start,children:[
+      Padding(padding:const EdgeInsets.only(left:3,bottom:10),
+        child:Text(widget.label,style:const TextStyle(
+          fontSize:12.5,fontWeight:FontWeight.w600,color:KColors.muted))),
+      AnimatedContainer(
+        duration:kakaReduceMotion(context)?Duration.zero:KakaMotion.standard,
+        curve:KakaMotion.arrive,
+        decoration:BoxDecoration(
+          color:_focused?const Color(0xFFECECEB):KColors.soft,
+          borderRadius:BorderRadius.circular(23)),
+        child:TextField(
+          focusNode:_focus,
+          controller:widget.controller,
+          obscureText:widget.obscure,
+          maxLines:widget.maxLines,
+          keyboardType:widget.keyboardType,
+          cursorColor:KColors.ink,
+          cursorRadius:const Radius.circular(3),
+          style:const TextStyle(fontSize:16,color:KColors.ink,height:1.36),
+          decoration:InputDecoration(
+            hintText:widget.hint,
+            hintStyle:const TextStyle(color:KColors.muted,fontSize:15),
+            filled:false,
+            contentPadding:const EdgeInsets.symmetric(
+              vertical:18,horizontal:18),
+            border:InputBorder.none,
+            enabledBorder:InputBorder.none,
+            focusedBorder:InputBorder.none,
+          ),
         ),
       ),
     ],
@@ -205,8 +242,9 @@ class KakaRow extends StatelessWidget {
               style:const TextStyle(fontSize:12,color:KColors.muted,height:1.35))),
         ])),
         const SizedBox(width:8),
-        trailing ?? Icon(LucideIcons.chevronRight,
-          size:17,color:KColors.muted.withValues(alpha:.75)),
+        trailing ?? (onTap==null?const SizedBox.shrink():
+          Icon(LucideIcons.chevronRight,
+            size:17,color:KColors.muted.withValues(alpha:.75))),
       ]),
     ),
   );
