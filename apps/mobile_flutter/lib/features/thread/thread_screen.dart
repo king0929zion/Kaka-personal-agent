@@ -779,7 +779,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                   ])))),
           ])),
         KakaGlassSurface(
-        radius:32,sigma:16,
+        radius:32,sigma:0,
         padding:const EdgeInsets.fromLTRB(13,9,8,9),
         child:Row(crossAxisAlignment:CrossAxisAlignment.end,children:[
           KakaIconButton(icon:LucideIcons.plus,size:40,onTap:pickAttachment),
