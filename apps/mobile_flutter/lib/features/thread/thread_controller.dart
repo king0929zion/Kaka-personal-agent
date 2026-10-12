@@ -186,13 +186,16 @@ class ThreadController extends ChangeNotifier {
     } else if (e.type == 'thread.message.created' || e.type == 'thread.message.updated') {
       final id = '${e.payload['messageId'] ?? e.id ?? 'event:$seq'}';
       messages.removeWhere((m)=>m.id == 'progress:${e.runId ?? botId}');
-      final existing = messages.where((m) => m.id == id).firstOrNull;
+      final idx = messages.indexWhere((m) => m.id == id);
+      final existing = idx < 0 ? null : messages[idx];
       final data = <String, dynamic>{
         ...e.payload,
         'id': id,
         // Updates can be partial, e.g. to close a voice-call card.
         if (e.payload['blocks'] == null && existing != null) 'blocks': existing.blocks,
         if (e.payload['role'] == null && existing != null) 'role':existing.role,
+        if (e.payload['createdAt'] == null && existing != null &&
+            existing.createdAt != null) 'createdAt':existing.createdAt,
         if (e.payload['replyQuote'] == null && existing != null &&
             existing.replyQuote != null) 'replyQuote':existing.replyQuote,
         if (e.payload['replyToMessageId'] == null && existing != null &&
@@ -202,7 +205,6 @@ class ThreadController extends ChangeNotifier {
         'botId':e.botId ?? e.payload['botId'] ?? existing?.botId,
       };
       final message = KakaMessage.fromJson(data);
-      final idx = messages.indexWhere((m) => m.id == id);
       if (idx < 0) { messages.add(message); }
       else { messages[idx] = message; }
     } else if(e.type == 'run.waiting_input' || e.type == 'computer.takeover.requested') {
