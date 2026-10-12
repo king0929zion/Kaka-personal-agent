@@ -540,6 +540,7 @@ class _KakaDraggableSheet extends StatefulWidget {
   final Widget child;
   final GlobalKey surfaceKey;
   const _KakaDraggableSheet({
+    super.key,
     required this.animation,required this.child,required this.surfaceKey,
   });
   @override
@@ -580,18 +581,6 @@ class _KakaDraggableSheetState extends State<_KakaDraggableSheet>
     final next=(route*factor).clamp(0.0,1.0);
     if ((KakaSheetDepth.progress.value-next).abs()>.001) {
       KakaSheetDepth.progress.value=next;
-    }
-  }
-
-  void _tapDown(TapDownDetails details) {
-    // GeneralDialog may size its page to the entire overlay even if the
-    // actual sheet is small. Hit-test the keyed sheet's *visual bounds*,
-    // rather than letting an invisible fullscreen page swallow barrier taps.
-    final render=widget.surfaceKey.currentContext?.findRenderObject();
-    if(render is! RenderBox || !render.hasSize)return;
-    final bounds=render.localToGlobal(Offset.zero) & render.size;
-    if(!bounds.contains(details.globalPosition)){
-      Navigator.of(context).maybePop();
     }
   }
 
@@ -638,23 +627,14 @@ class _KakaDraggableSheetState extends State<_KakaDraggableSheet>
           ? widget.animation.value
           : const _KakaSheetSpringCurve().transform(widget.animation.value);
       final entry=math.min(_height,MediaQuery.sizeOf(context).height*.9);
-      return Align(
-        alignment:Alignment.bottomCenter,
-        child:Transform.translate(
-          offset:Offset(0,(1-progress)*entry+_drag.value),
-          child:GestureDetector(
-            behavior:HitTestBehavior.opaque,
-            onTapDown:_tapDown,
-            onVerticalDragUpdate:_dragUpdate,
-            onVerticalDragEnd:_dragEnd,
-            child:AnimatedPadding(
-              padding:EdgeInsets.only(
-                bottom:MediaQuery.viewInsetsOf(context).bottom),
-              duration:reduced?Duration.zero:KakaMotion.quick,
-              curve:KakaMotion.arrive,
-              child:child!,
-            ),
-          ),
+      return Transform.translate(
+        offset:Offset(0,(1-progress)*entry+_drag.value),
+        child:AnimatedPadding(
+          padding:EdgeInsets.only(
+            bottom:MediaQuery.viewInsetsOf(context).bottom),
+          duration:reduced?Duration.zero:KakaMotion.quick,
+          curve:KakaMotion.arrive,
+          child:child!,
         ),
       );
     },
@@ -665,6 +645,7 @@ class _KakaDraggableSheetState extends State<_KakaDraggableSheet>
 /// parent page retreats in sync; drag gestures can dismiss or spring back.
 Future<T?> kakaSheet<T>(BuildContext context, Widget content, {double? height}) {
   final sheetSurfaceKey=GlobalKey();
+  final transitionKey=GlobalKey<_KakaDraggableSheetState>();
   return showGeneralDialog<T>(
       context:context,
       barrierDismissible:true,
@@ -673,10 +654,18 @@ Future<T?> kakaSheet<T>(BuildContext context, Widget content, {double? height}) 
       transitionDuration:kakaReduceMotion(context)
           ? const Duration(milliseconds:180)
           : const Duration(milliseconds:400),
-      pageBuilder:(ctx,a,b)=>Material(
-            type:MaterialType.transparency,
-            child:SafeArea(
-              top:false,
+      pageBuilder:(ctx,a,b)=>Align(
+        alignment:Alignment.bottomCenter,
+        child:Material(
+          type:MaterialType.transparency,
+          child:SafeArea(
+            top:false,
+            child:GestureDetector(
+              behavior:HitTestBehavior.opaque,
+              onVerticalDragUpdate:(details)=>
+                transitionKey.currentState?._dragUpdate(details),
+              onVerticalDragEnd:(details)=>
+                transitionKey.currentState?._dragEnd(details),
               child:ClipRRect(
                 key:sheetSurfaceKey,
                 borderRadius:const BorderRadius.vertical(
@@ -712,8 +701,11 @@ Future<T?> kakaSheet<T>(BuildContext context, Widget content, {double? height}) 
               ),
             ),
           ),
+        ),
+      ),
       transitionBuilder:(ctx,animation,secondary,child)=>
         _KakaDraggableSheet(
+          key:transitionKey,
           animation:animation,child:child,
           surfaceKey:sheetSurfaceKey),
     );
