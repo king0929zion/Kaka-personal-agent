@@ -94,7 +94,7 @@ void main() {
     expect(KakaSheetDepth.progress.value, greaterThan(0));
     await tester.pump(const Duration(milliseconds:200));
     expect(tester.takeException(),isNull);
-    await tester.pageBack();
+    await tester.tapAt(const Offset(10,10));
     await tester.pump(const Duration(milliseconds:450));
     expect(KakaSheetDepth.progress.value,closeTo(0,.02));
   });
