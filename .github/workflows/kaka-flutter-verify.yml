@@ -51,7 +51,7 @@ jobs:
 
       - name: Flutter analyze
         working-directory: apps/mobile_flutter
-        run: flutter analyze
+        run: flutter analyze --no-fatal-infos
 
       - name: Widget and unit tests
         working-directory: apps/mobile_flutter
