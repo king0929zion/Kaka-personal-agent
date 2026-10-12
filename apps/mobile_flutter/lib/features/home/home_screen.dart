@@ -266,7 +266,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return KakaContentWidth(child:ListView.builder(
       key:PageStorageKey('kaka-home-list-$tab'),
       controller:tab==1?_agentsScroll:_chatsScroll,
-      scrollCacheExtent: 120,
       addAutomaticKeepAlives: false,
       padding: const EdgeInsets.fromLTRB(KLayout.pageGutter, 0, KLayout.pageGutter, 125),
       itemCount: count,
