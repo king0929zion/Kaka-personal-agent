@@ -36,6 +36,11 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   static const maxQueuedBytes=12*1024*1024;
   final scroll = ScrollController();
   int lastCount = 0;
+  bool _scrollFramePending = false;
+  // Reuse existing Markdown widget subtrees when an unrelated SSE event arrives.
+  // A changed message instance gets a new subtree automatically.
+  final _messageCache =
+      <String, ({KakaMessage message, Widget view})>{};
   bool focused=false;
   bool _realtimePaused=false;
   KakaMessage? replyingTo;
@@ -58,15 +63,21 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       scroll.position.maxScrollExtent-scroll.position.pixels<145;
     lastCount=count;
     if(!firstLoad && !wasNearBottom)return;
+    // Multiple token events may arrive before layout. Schedule only one
+    // correction and do not interrupt the viewport if it is already aligned.
+    if (_scrollFramePending) return;
+    _scrollFramePending = true;
     WidgetsBinding.instance.addPostFrameCallback((_){
+      _scrollFramePending = false;
       if(!mounted||!scroll.hasClients)return;
       final end=scroll.position.maxScrollExtent;
+      if ((end-scroll.position.pixels).abs()<1) return;
       if(firstLoad || !added){
         scroll.jumpTo(end);
       }else{
         scroll.animateTo(end,
-          duration:const Duration(milliseconds:210),
-          curve:Curves.easeOutCubic);
+          duration:const Duration(milliseconds:145),
+          curve:KakaMotion.arrive);
       }
     });
   }
@@ -309,7 +320,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                   ]);
                 }
                 final message=thread.messages[i-1];
-                return RepaintBoundary(key:ValueKey(message.id),child:_message(message));
+                return _cachedMessageView(message);
               },
             ))),
       AnimatedBuilder(animation:thread,builder:(context,_) =>
@@ -409,6 +420,27 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       try{await widget.api.rpc('threads/clear',widget.group ? {'groupId':widget.bot.id} : {'botId':widget.bot.id}); await thread.load();}
       catch(e){if(mounted)kakaNotice(context,e.toString());}
     }
+  }
+
+  Widget _cachedMessageView(KakaMessage message) {
+    final entry = _messageCache[message.id];
+    if (entry != null && identical(entry.message, message)) {
+      return entry.view;
+    }
+    // Preserve the exact Widget instance for unchanged messages. A repaint
+    // boundary alone does NOT avoid rebuilding expensive MarkdownBody trees.
+    final view = RepaintBoundary(
+      key: ValueKey(message.id),
+      child: _message(message),
+    );
+    _messageCache.remove(message.id);
+    _messageCache[message.id] = (message: message, view: view);
+    // Keep this a bounded cache: long-lived chats must not accumulate every
+    // visited message (and its render subtree) in memory.
+    if (_messageCache.length > 80) {
+      _messageCache.remove(_messageCache.keys.first);
+    }
+    return view;
   }
 
   Widget _message(KakaMessage message) {
