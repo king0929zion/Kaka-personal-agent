@@ -419,17 +419,88 @@ Future<T?> kakaSheet<T>(BuildContext context, Widget content, {double? height}) 
     },
   );
 
-void kakaNotice(BuildContext context, String message) {
-  final entry = OverlayEntry(builder: (ctx) => Positioned(
-    left: 24, right: 24, bottom: MediaQuery.paddingOf(ctx).bottom + 26,
-    child: IgnorePointer(child: Material(type: MaterialType.transparency,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
-        decoration: BoxDecoration(color: KColors.ink, borderRadius: BorderRadius.circular(22)),
-        child: Text(message, textAlign: TextAlign.center,
-          style: const TextStyle(color: Colors.white, fontSize: 13)),
-      ))),
-  ));
+/// Lightweight animated notice; removes its OverlayEntry and ticker on exit.
+void kakaNotice(BuildContext context,String message) {
+  late OverlayEntry entry;
+  var removed=false;
+  void remove(){
+    if(removed)return;
+    removed=true;
+    entry.remove();
+    entry.dispose();
+  }
+  entry=OverlayEntry(builder:(ctx)=>_KakaNotice(
+    message:message,onDismiss:remove));
   Overlay.of(context).insert(entry);
-  Future<void>.delayed(const Duration(seconds: 3), entry.remove);
+}
+
+class _KakaNotice extends StatefulWidget {
+  final String message;
+  final VoidCallback onDismiss;
+  const _KakaNotice({required this.message,required this.onDismiss});
+  @override
+  State<_KakaNotice> createState()=>_KakaNoticeState();
+}
+class _KakaNoticeState extends State<_KakaNotice>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController animation=AnimationController(
+    vsync:this,duration:KakaMotion.standard,reverseDuration:KakaMotion.quick);
+  bool closing=false;
+  @override
+  void initState(){
+    super.initState();
+    animation.forward();
+    _expire();
+  }
+  Future<void> _expire() async {
+    await Future<void>.delayed(const Duration(milliseconds:2400));
+    if(mounted)await _close();
+  }
+  Future<void> _close() async {
+    if(closing)return;
+    closing=true;
+    try{await animation.reverse();}
+    finally{if(mounted)widget.onDismiss();}
+  }
+  @override
+  void dispose(){animation.dispose();super.dispose();}
+  @override
+  Widget build(BuildContext context) {
+    final reduced=kakaReduceMotion(context);
+    final curve=CurvedAnimation(parent:animation,
+      curve:KakaMotion.arrive,reverseCurve:KakaMotion.depart);
+    return Positioned(
+      left:22,right:22,
+      bottom:math.max(MediaQuery.viewInsetsOf(context).bottom,
+          MediaQuery.viewPaddingOf(context).bottom)+26,
+      child:FadeTransition(opacity:curve,
+        child:SlideTransition(
+          position:Tween<Offset>(
+            begin:reduced?Offset.zero:const Offset(0,.32),
+            end:Offset.zero).animate(curve),
+          child:ScaleTransition(
+            scale:Tween<double>(begin:reduced?1:.96,end:1).animate(curve),
+            child:Center(child:KakaPress(
+              onTap:()=>_close(),
+              child:Material(type:MaterialType.transparency,
+                child:Semantics(liveRegion:true,
+                  child:Container(
+                    constraints:const BoxConstraints(maxWidth:480),
+                    padding:const EdgeInsets.symmetric(
+                      horizontal:21,vertical:16),
+                    decoration:BoxDecoration(color:KColors.ink,
+                      borderRadius:BorderRadius.circular(25)),
+                    child:Text(widget.message,
+                      textAlign:TextAlign.center,
+                      style:const TextStyle(color:Colors.white,
+                        fontSize:13,height:1.45)),
+                  ),
+                ),
+              ),
+            )),
+          ),
+        ),
+      ),
+    );
+  }
 }
