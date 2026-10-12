@@ -219,7 +219,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final tab=widget.app.tab.clamp(0,3);
       final direction=tab>=_previousTab ? 1 : -1;
       _previousTab=tab;
-      return Scaffold(
+      return KakaDepthStage(child:Scaffold(
         backgroundColor:KColors.bg,
         body:SafeArea(child:Stack(children:[
           Column(children:[
@@ -274,7 +274,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child:KakaProgressiveBlur()),
           Positioned(left:0,right:0,bottom:13,child:_bottomNav(tab)),
         ])),
-      );
+      ));
     });
 
   // Lazily builds visible rows. Previously every agent (and every avatar ticker)
