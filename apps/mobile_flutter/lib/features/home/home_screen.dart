@@ -230,20 +230,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   hintText:'Search agents',filled:true,fillColor:KColors.soft,
                   border:OutlineInputBorder(borderRadius:BorderRadius.circular(23),
                     borderSide:BorderSide.none)))),
-            Expanded(child:AnimatedSwitcher(
-              duration:kakaReduceMotion(context)
-                ?Duration.zero:KakaMotion.standard,
-              switchInCurve:KakaMotion.arrive,
-              switchOutCurve:KakaMotion.depart,
-              transitionBuilder:(child,animation)=>FadeTransition(
-                opacity:animation,
-                child:SlideTransition(
-                  position:Tween<Offset>(
-                    begin:const Offset(0,.016),
-                    end:Offset.zero).animate(animation),
-                  child:child)),
-              child:KeyedSubtree(key:ValueKey<int>(tab),
-                child:tab==2?_settings():_list(tab)),
+            // Avoid mounting TWO potentially long chat/agent lists during
+            // tab crossfades. The floating navigation pill carries the motion.
+            Expanded(child:KeyedSubtree(
+              key:ValueKey<int>(tab),
+              child:tab==2?_settings():_list(tab),
             )),
           ]),
           const Positioned(left:0,right:0,bottom:0,height:124,
@@ -419,7 +410,7 @@ class _HomeScreenState extends State<HomeScreen> {
           child:Stack(children:[
             AnimatedPositioned(
               duration:kakaReduceMotion(context)
-                ?Duration.zero:const Duration(milliseconds:390),
+                ?Duration.zero:KakaMotion.standard,
               curve:KakaMotion.arrive,
               left:54.0*tab,top:0,
               child:Container(width:54,height:52,
