@@ -127,7 +127,7 @@ class _MemoryScreenState extends State<MemoryScreen> {
                 if(docs.isEmpty&&!loading)const Padding(
                   padding:EdgeInsets.symmetric(vertical:46),
                   child:Center(child:Text('No memory documents',
-                    style:TextStyle(color:KColors.muted)))),
+                    style:TextStyle(color:KColors.muted))),
               ]));
             final doc=docs[i-1];
             final preview=doc['content']?.toString()??'';

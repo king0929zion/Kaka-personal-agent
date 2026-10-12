@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -7,6 +8,7 @@ import '../../core/models.dart';
 import '../../design/theme.dart';
 import '../../design/widgets.dart';
 import 'computer_files_screen.dart';
+import 'computer_keyboard_bar.dart';
 
 /// Some deployments expose a loopback noVNC capability URL; a remote phone
 /// must open the same host as its authenticated server rather than localhost.
@@ -215,13 +217,70 @@ class _DesktopView extends StatefulWidget {
 
 class _DesktopViewState extends State<_DesktopView> {
   late final WebViewController controller;
+  bool _keyboardReady=false;
+  int _pageGeneration=0;
+
+  Future<void> _probeKeyboard(int generation) async {
+    for(var attempt=0;attempt<20;attempt++){
+      if(!mounted || generation!=_pageGeneration)return;
+      try {
+        final result=await controller.runJavaScriptReturningResult(
+          'Boolean(window.rakazoComputerKeyboard && '
+          'typeof window.rakazoComputerKeyboard.run === "function")');
+        if(result==true || result.toString()=='true') {
+          // A generic noVNC page has its own keys. Once the Flutter bridge is
+          // ready, remove duplicate page keyboard chrome, not its trackpad.
+          await controller.runJavaScript(
+            "document.getElementById('mobile-keyboard')?.setAttribute('hidden','');"
+            "document.getElementById('mobile-key-bar')?.setAttribute('hidden','');"
+            "window.__rakazoNativeKeys=true;true;");
+          if(mounted && generation==_pageGeneration) {
+            setState(()=>_keyboardReady=true);
+          }
+          return;
+        }
+      }catch(_) {
+        // The page may still be installing noVNC after onPageFinished.
+      }
+      await Future<void>.delayed(const Duration(milliseconds:200));
+    }
+  }
+
+  Future<void> _sendKeyboard(Map<String,dynamic> command) async {
+    if(!_keyboardReady)return;
+    // JSON is an expression here, not a quoted JS string. Escape the HTML
+    // breakout and JS line separators to prevent injected script syntax.
+    final json=jsonEncode(command)
+      .replaceAll('<',r'\u003c')
+      .replaceAll('\u2028',r'\u2028')
+      .replaceAll('\u2029',r'\u2029');
+    await controller.runJavaScript(
+      'window.rakazoComputerKeyboard?.run($json);true;');
+  }
+
   @override
   void initState(){
     super.initState();
     controller=WebViewController();
     controller.setJavaScriptMode(JavaScriptMode.unrestricted);
+    controller.setNavigationDelegate(NavigationDelegate(
+      onPageStarted:(_){
+        ++_pageGeneration;
+        if(mounted)setState(()=>_keyboardReady=false);
+      },
+      onPageFinished:(_){
+        unawaited(_probeKeyboard(_pageGeneration));
+      },
+    ));
     controller.loadRequest(widget.url);
   }
+
+  @override
+  void dispose(){
+    ++_pageGeneration;
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context)=>Scaffold(
     backgroundColor:KColors.bg,
@@ -237,6 +296,11 @@ class _DesktopViewState extends State<_DesktopView> {
           onTap:()=>controller.reload()),
       ])),
       Expanded(child:WebViewWidget(controller:controller)),
+      ComputerKeyboardBar(enabled:_keyboardReady,send:_sendKeyboard),
+      if(!_keyboardReady)const Padding(
+        padding:EdgeInsets.only(bottom:7),
+        child:Text('Keyboard available after desktop control connects',
+          style:TextStyle(color:KColors.muted,fontSize:11))),
     ])),
   );
 }
