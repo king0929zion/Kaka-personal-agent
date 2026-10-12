@@ -357,6 +357,11 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
               Navigator.pop(context);
               _markUnread();
             }),
+          if(thread.canStop)KakaRow(title:'Follow up',icon:LucideIcons.messageSquarePlus,
+            onTap:(){
+              Navigator.pop(context);
+              _followUp();
+            }),
           KakaRow(title:'Refresh chat',icon:LucideIcons.refreshCw,onTap:(){
             Navigator.pop(context);thread.load();}),
           KakaRow(title:'Clear conversation',icon:LucideIcons.trash2,onTap:(){
@@ -604,6 +609,67 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         ])),
       ]));
 
+  Future<void> _react(KakaMessage message,String emoji) async {
+    try {
+      await widget.api.rpc('threads/react',{
+        if(widget.group)'groupId':widget.bot.id
+        else 'botId':widget.bot.id,
+        'messageId':message.id,
+        'reaction':emoji,
+        'clientNonce':'flutter-react-${DateTime.now().microsecondsSinceEpoch}',
+      });
+      if(mounted)kakaNotice(context,'Reaction sent');
+    }catch(e){if(mounted)kakaNotice(context,e.toString());}
+  }
+  Future<void> _reactionPicker(KakaMessage message) async {
+    await kakaSheet<void>(context,Column(
+      mainAxisSize:MainAxisSize.min,
+      crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+        Text('React',style:Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height:18),
+        Wrap(spacing:10,runSpacing:10,children:[
+          for(final emoji in const ['👍','👎','❤️','😂','🎉','😮'])
+            GestureDetector(onTap:(){
+              Navigator.pop(context);
+              _react(message,emoji);
+            },child:Container(
+              width:53,height:53,alignment:Alignment.center,
+              decoration:BoxDecoration(color:KColors.soft,
+                borderRadius:BorderRadius.circular(21)),
+              child:Text(emoji,style:const TextStyle(fontSize:27)),
+            )),
+        ]),
+      ]));
+  }
+  Future<void> _followUp() async {
+    final input=TextEditingController();
+    try{
+      await kakaSheet<void>(context,SingleChildScrollView(
+        child:Column(mainAxisSize:MainAxisSize.min,
+          crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+            Text('Follow up',style:Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height:14),
+            KakaField(controller:input,label:'Instructions',maxLines:4,
+              hint:'Add another instruction while the agent works'),
+            const SizedBox(height:15),
+            KakaButton(title:'Send follow-up',onPressed:()async{
+              final content=input.text.trim();
+              if(content.isEmpty)return;
+              Navigator.pop(context);
+              try{
+                await widget.api.rpc('threads/followUp',{
+                  if(widget.group)'groupId':widget.bot.id
+                  else 'botId':widget.bot.id,
+                  'text':content,
+                });
+              }catch(e){if(mounted)kakaNotice(context,e.toString());}
+            }),
+          ])));
+    }finally{
+      WidgetsBinding.instance.addPostFrameCallback((_)=>input.dispose());
+    }
+  }
+
   void _messageMenu(KakaMessage message) {
     final text=message.text;
     kakaSheet<void>(context,Column(mainAxisSize:MainAxisSize.min,children:[
@@ -615,6 +681,10 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       KakaRow(title:'Reply with quote',icon:LucideIcons.reply,onTap:(){
         Navigator.pop(context);
         setState(()=>replyingTo=message);
+      }),
+      KakaRow(title:'React',icon:LucideIcons.smile,onTap:(){
+        Navigator.pop(context);
+        _reactionPicker(message);
       }),
       KakaRow(title:'Select text',icon:LucideIcons.textSelect,onTap:(){
         Navigator.pop(context);
