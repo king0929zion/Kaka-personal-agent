@@ -8,6 +8,11 @@ on:
       - '.github/workflows/kaka-flutter-android.yml'
   workflow_dispatch:
 
+# Build only the newest Android preview on a fast-moving branch.
+concurrency:
+  group: kaka-flutter-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   flutter-preview:
     runs-on: ubuntu-latest
