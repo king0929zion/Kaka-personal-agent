@@ -1,156 +1,178 @@
 import 'dart:ui';
+
 import 'package:flutter/material.dart';
-import 'package:flutter/physics.dart';
+
 import '../core/performance_prefs.dart';
 
-/// One language for motion across routes, buttons, sheets and navigation.
-/// Uses custom opacity/offset/scale transitions instead of Android platform defaults.
+/// Consistent, short, non-overshooting motion for Kaka's custom controls.
 abstract final class KakaMotion {
-  static const route = Duration(milliseconds: 410);
-  static const sheet = Duration(milliseconds: 470);
-  static const quick = Duration(milliseconds: 190);
-  static const standard = Duration(milliseconds: 320);
-  static const Curve arrive = Cubic(.16, 1, .30, 1);
-  static const Curve depart = Cubic(.55, 0, 1, .45);
-  static const Curve flourish = Cubic(.18, 1.15, .38, 1);
-  static const SpringDescription pressSpring =
-      SpringDescription(mass: 1, stiffness: 330, damping: 29);
+  static const route = Duration(milliseconds: 280);
+  static const sheet = Duration(milliseconds: 330);
+  static const quick = Duration(milliseconds: 140);
+  static const standard = Duration(milliseconds: 230);
+
+  // Curves stay within the start/end values: no spring overshoot or rubber-band
+  // motion when navigating between full-screen pages.
+  static const Curve arrive = Cubic(.20, .78, .24, 1);
+  static const Curve depart = Cubic(.45, 0, .80, .55);
+  static const Curve flourish = Cubic(.22, .76, .20, 1);
 }
 
-/// Respect OS reduced-motion and app low-power mode.
 bool kakaReduceMotion(BuildContext context) =>
     MediaQuery.disableAnimationsOf(context) || PerformancePrefs.lowPower.value;
 
+/// Material routes and KakaRoute use the same visual language.
+/// Do not scale the entire route or additionally translate the outgoing route:
+/// those transforms combine badly with text, live blur, and gesture navigation.
 class KakaPageTransitionsBuilder extends PageTransitionsBuilder {
   const KakaPageTransitionsBuilder();
+
   @override
-  Widget buildTransitions<T>(PageRoute<T> route, BuildContext context,
-      Animation<double> animation, Animation<double> secondaryAnimation,
-      Widget child) {
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
     if (kakaReduceMotion(context)) {
       return FadeTransition(opacity: animation, child: child);
     }
-    final incoming = CurvedAnimation(parent: animation,
-      curve: KakaMotion.arrive, reverseCurve: KakaMotion.depart);
-    final outgoing = CurvedAnimation(parent: secondaryAnimation,
-      curve: KakaMotion.arrive, reverseCurve: KakaMotion.depart);
+    final offset = Tween<Offset>(
+      begin: const Offset(.035, 0),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: animation,
+      curve: KakaMotion.arrive,
+      reverseCurve: KakaMotion.depart,
+    ));
     return FadeTransition(
-      opacity: Tween<double>(begin: .72, end: 1).animate(incoming),
-      child: SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(.07, .018), end: Offset.zero).animate(incoming),
-        child: ScaleTransition(
-          scale: Tween<double>(begin: .985, end: 1).animate(incoming),
-          child: SlideTransition(
-            position: Tween<Offset>(
-              begin: Offset.zero, end: const Offset(-.032, 0)).animate(outgoing),
-            child: child,
-          ),
-        ),
-      ),
+      opacity: animation,
+      child: SlideTransition(position: offset, child: child),
     );
   }
 }
 
 class KakaRoute<T> extends PageRouteBuilder<T> {
   KakaRoute({required WidgetBuilder builder, super.settings})
-    : super(
-      transitionDuration: KakaMotion.route,
-      reverseTransitionDuration: const Duration(milliseconds: 340),
-      pageBuilder: (context, animation, secondary) => builder(context),
-      transitionsBuilder: (context, animation, secondary, child) {
-        if(kakaReduceMotion(context))return FadeTransition(
-          opacity: animation,child:child);
-        final curved=CurvedAnimation(parent:animation,
-          curve:KakaMotion.arrive,reverseCurve:KakaMotion.depart);
-        return FadeTransition(
-          opacity:Tween(begin:.76,end:1.0).animate(curved),
-          child:SlideTransition(
-            position:Tween(begin:const Offset(.09,.012),
-              end:Offset.zero).animate(curved),
-            child:ScaleTransition(
-              scale:Tween(begin:.985,end:1.0).animate(curved),
-              child:child,
-            ),
-          ),
+      : super(
+          transitionDuration: KakaMotion.route,
+          reverseTransitionDuration: const Duration(milliseconds: 230),
+          pageBuilder: (context, animation, secondary) => builder(context),
+          transitionsBuilder: (context, animation, secondary, child) {
+            if (kakaReduceMotion(context)) {
+              return FadeTransition(opacity: animation, child: child);
+            }
+            final offset = Tween<Offset>(
+              begin: const Offset(.035, 0),
+              end: Offset.zero,
+            ).animate(CurvedAnimation(
+              parent: animation,
+              curve: KakaMotion.arrive,
+              reverseCurve: KakaMotion.depart,
+            ));
+            return FadeTransition(
+              opacity: animation,
+              child: SlideTransition(position: offset, child: child),
+            );
+          },
         );
-      },
-    );
 }
 
-/// Four narrow, non-overlapping backdrop bands produce a smooth stepped
-/// progressive blur. Restricted to a small chrome region (not scroll content).
-/// In low-power mode this becomes a cheap translucent gradient.
+/// A bounded, single-pass blurred backdrop with a smooth tint falloff.
+///
+/// A genuine spatially varying Gaussian blur needs a GPU shader / composited
+/// texture and must be benchmarked per device. Five independent, high-sigma
+/// BackdropFilters here previously produced visible bands and costly redraws.
+/// This lightweight approximation has just ONE backdrop sample, with the
+/// softness fading visually through the overlay gradient. Keep it confined
+/// to small chrome areas, never as a full-screen scrolling backdrop.
 class KakaProgressiveBlur extends StatelessWidget {
   final bool fromTop;
   final Color tint;
-  const KakaProgressiveBlur({super.key,this.fromTop=false,
-    this.tint=const Color(0xFFFAFAFA)});
+
+  const KakaProgressiveBlur({
+    super.key,
+    this.fromTop = false,
+    this.tint = const Color(0xFFF7F7F6),
+  });
+
   @override
   Widget build(BuildContext context) {
-    final reduce=kakaReduceMotion(context);
-    return IgnorePointer(child:LayoutBuilder(builder:(context,size){
-      final width=size.maxWidth, height=size.maxHeight;
-      if(!width.isFinite || !height.isFinite || height<=0)return const SizedBox.shrink();
-      if(reduce)return DecoratedBox(decoration:BoxDecoration(
-        gradient:LinearGradient(
-          begin:fromTop?Alignment.topCenter:Alignment.bottomCenter,
-          end:fromTop?Alignment.bottomCenter:Alignment.topCenter,
-          colors:[tint.withValues(alpha:.94),tint.withValues(alpha:0)])));
-      final blurs=<double>[2,5,9,15,21];
-      final bandHeight=height/blurs.length;
-      return Stack(fit:StackFit.expand,children:[
-        for(var i=0;i<blurs.length;i++)
-          Positioned(
-            left:0,right:0,
-            top:fromTop?i*bandHeight:null,
-            bottom:fromTop?null:i*bandHeight,
-            height:bandHeight+.5,
-            child:ClipRect(child:BackdropFilter(
-              filter:ImageFilter.blur(sigmaX:blurs[i],sigmaY:blurs[i]),
-              child:const SizedBox.expand(),
-            )),
-          ),
-        DecoratedBox(decoration:BoxDecoration(
-          gradient:LinearGradient(
-            begin:fromTop?Alignment.topCenter:Alignment.bottomCenter,
-            end:fromTop?Alignment.bottomCenter:Alignment.topCenter,
-            stops:const [0,.22,.52,.79,1],
-            colors:[
-              tint.withValues(alpha:.78),
-              tint.withValues(alpha:.62),
-              tint.withValues(alpha:.35),
-              tint.withValues(alpha:.12),
-              tint.withValues(alpha:0),
-            ],
-          ),
-        )),
-      ]);
-    }));
+    final lowPower = kakaReduceMotion(context);
+    final start = fromTop ? Alignment.topCenter : Alignment.bottomCenter;
+    final end = fromTop ? Alignment.bottomCenter : Alignment.topCenter;
+
+    return IgnorePointer(
+      child: ClipRect(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (!lowPower)
+              BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                child: const SizedBox.expand(),
+              ),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: start,
+                  end: end,
+                  stops: const [0, .26, .55, .78, 1],
+                  colors: [
+                    tint.withValues(alpha: lowPower ? .98 : .87),
+                    tint.withValues(alpha: .73),
+                    tint.withValues(alpha: .44),
+                    tint.withValues(alpha: .17),
+                    tint.withValues(alpha: 0),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
-/// Rounded translucent control surface, with no outline or heavy shadow.
+/// Floating surfaces use one clipped blur at most. In low-power / reduced
+/// effects mode we skip the filter entirely rather than running sigma=0.
 class KakaGlassSurface extends StatelessWidget {
   final Widget child;
   final double radius;
   final EdgeInsetsGeometry padding;
   final double sigma;
-  const KakaGlassSurface({super.key,required this.child,
-    this.radius=34,this.padding=EdgeInsets.zero,this.sigma=18});
+
+  const KakaGlassSurface({
+    super.key,
+    required this.child,
+    this.radius = 34,
+    this.padding = EdgeInsets.zero,
+    this.sigma = 10,
+  });
+
   @override
   Widget build(BuildContext context) {
-    final low=kakaReduceMotion(context);
-    return ClipRRect(
-      borderRadius:BorderRadius.circular(radius),
-      child:BackdropFilter(
-        filter:ImageFilter.blur(sigmaX:low?0:sigma,sigmaY:low?0:sigma),
-        child:DecoratedBox(
-          decoration:BoxDecoration(
-            color:Colors.white.withValues(alpha:low ? .94 : .77)),
-          child:Padding(padding:padding,child:child),
-        ),
+    final lowPower = kakaReduceMotion(context);
+    final surface = DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: lowPower ? .97 : .87),
       ),
+      child: Padding(padding: padding, child: child),
+    );
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: lowPower || sigma <= 0
+          ? surface
+          : BackdropFilter(
+              filter: ImageFilter.blur(
+                sigmaX: sigma.clamp(0.0, 10.0),
+                sigmaY: sigma.clamp(0.0, 10.0),
+              ),
+              child: surface,
+            ),
     );
   }
 }
