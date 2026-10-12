@@ -11,6 +11,7 @@ import '../../design/theme.dart';
 import '../../design/widgets.dart';
 import '../avatar/avatar_settings.dart';
 import '../avatar/avatar_editor.dart';
+import '../computer/computer_screen.dart';
 import 'thread_controller.dart';
 
 class ThreadScreen extends StatefulWidget {
@@ -232,6 +233,11 @@ class _ThreadScreenState extends State<ThreadScreen> {
             Navigator.pop(context);
             Navigator.push(context,MaterialPageRoute<void>(
               builder:(_)=>AvatarEditor(bot:widget.bot)));}),
+          if(!widget.group)KakaRow(title:'Open computer',icon:LucideIcons.monitor,onTap:(){
+            Navigator.pop(context);
+            Navigator.push(context,MaterialPageRoute<void>(builder:(_)=>
+              ComputerScreen(api:widget.api,bot:widget.bot)));
+          }),
           KakaRow(title:'Refresh chat',icon:LucideIcons.refreshCw,onTap:(){
             Navigator.pop(context);thread.load();}),
           KakaRow(title:'Clear conversation',icon:LucideIcons.trash2,onTap:(){
@@ -308,8 +314,12 @@ class _ThreadScreenState extends State<ThreadScreen> {
       kind=='file'?'Attachment':'Image attachment');
     if(kind=='chart')return _blockCard(LucideIcons.chartColumn,
       '${block['name'] ?? 'Chart'}','Chart output');
-    if(kind=='computer')return _blockCard(LucideIcons.monitor,
-      'Computer','Tap to review computer activity');
+    if(kind=='computer')return GestureDetector(
+      onTap:widget.group?null:()=>Navigator.push(context,
+        MaterialPageRoute<void>(builder:(_)=>ComputerScreen(
+          api:widget.api,bot:widget.bot))),
+      child:_blockCard(LucideIcons.monitor,
+        'Computer','${block['text'] ?? 'Open computer controls'}'));
     if(kind=='voice_call')return _blockCard(LucideIcons.audioLines,
       'Voice call','${block['status'] ?? 'Call activity'}');
     if(kind=='card') {
