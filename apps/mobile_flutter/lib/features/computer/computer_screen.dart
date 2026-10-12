@@ -61,9 +61,8 @@ class _ComputerScreenState extends State<ComputerScreen>
     if(actionBusy)return;
     setState(()=>actionBusy=true);
     try{
-      await widget.api.rpc('computer/$method',
-        {'botId':widget.bot.id,...extra},
-        timeout:const Duration(seconds:120));
+      await widget.api.rpcWithTimeout('computer/$method',
+        {'botId':widget.bot.id,...extra},const Duration(seconds:120));
       await _refresh(silent:true);
     }catch(e){
       if(mounted)kakaNotice(context,e.toString());

@@ -71,8 +71,11 @@ class KakaApi {
     if (spaceId.isNotEmpty) 'x-rakazo-space-id': spaceId,
   };
 
-  Future<dynamic> rpc(String path, [Map<String, dynamic> input = const {}],
-      {Duration timeout = const Duration(seconds:15)}) async {
+  Future<dynamic> rpc(String path, [Map<String, dynamic> input = const {}]) =>
+      rpcWithTimeout(path,input,const Duration(seconds:15));
+
+  Future<dynamic> rpcWithTimeout(String path, Map<String, dynamic> input,
+      Duration timeout) async {
     if (baseUrl.isEmpty) throw const KakaApiException('Connect a server first');
     final response = await _client.post(Uri.parse('$baseUrl/rpc/$path'),
       headers: _headers, body: jsonEncode({'json': input}))
