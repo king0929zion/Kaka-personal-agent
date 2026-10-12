@@ -13,6 +13,7 @@ import '../models/model_settings_screen.dart';
 import '../voice/voice_settings_screen.dart';
 import '../integrations/integrations_screen.dart';
 import '../search/search_screen.dart';
+import '../activity/activity_screen.dart';
 import '../agents/agent_settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -394,6 +395,9 @@ class _HomeScreenState extends State<HomeScreen> {
     ])),
     const SizedBox(height:20),
     KakaSection(title:'APP',child:Column(children:[
+      KakaRow(title:'Activity',icon:LucideIcons.activity,
+        onTap:()=>Navigator.push(context,MaterialPageRoute<void>(
+          builder:(_)=>ActivityScreen(app:widget.app)))),
       const KakaRow(title:'Appearance',subtitle:'Minimal monochrome',icon:LucideIcons.palette),
       ValueListenableBuilder<bool>(
         valueListenable:PerformancePrefs.lowPower,
