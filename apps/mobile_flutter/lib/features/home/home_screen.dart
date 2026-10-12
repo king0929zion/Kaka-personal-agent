@@ -15,6 +15,8 @@ import '../integrations/integrations_screen.dart';
 import '../mcp/mcp_screen.dart';
 import '../search/search_screen.dart';
 import '../activity/activity_screen.dart';
+import '../spaces/spaces_screen.dart';
+import '../archives/archived_screen.dart';
 import '../memory/memory_screen.dart';
 import '../agents/agent_settings_screen.dart';
 
@@ -396,13 +398,18 @@ class _HomeScreenState extends State<HomeScreen> {
         MaterialPageRoute<void>(builder:(_)=>IntegrationsScreen(api:widget.app.api)))),
       KakaRow(title:'Voice',icon:LucideIcons.audioLines,onTap:()=>Navigator.push(context,
         MaterialPageRoute<void>(builder:(_)=>VoiceSettingsScreen(api:widget.app.api)))),
-      KakaRow(title:'Spaces',icon:LucideIcons.layers,onTap:selectSpace),
+      KakaRow(title:'Spaces',icon:LucideIcons.layers,
+        onTap:()=>Navigator.push(context,MaterialPageRoute<void>(
+          builder:(_)=>SpacesScreen(app:widget.app)))),
     ])),
     const SizedBox(height:20),
     KakaSection(title:'APP',child:Column(children:[
       KakaRow(title:'Memory',icon:LucideIcons.notebookText,
         onTap:()=>Navigator.push(context,MaterialPageRoute<void>(
           builder:(_)=>MemoryScreen(api:widget.app.api)))),
+      KakaRow(title:'Archive',icon:LucideIcons.archive,
+        onTap:()=>Navigator.push(context,MaterialPageRoute<void>(
+          builder:(_)=>ArchivedScreen(app:widget.app)))),
       KakaRow(title:'Activity',icon:LucideIcons.activity,
         onTap:()=>Navigator.push(context,MaterialPageRoute<void>(
           builder:(_)=>ActivityScreen(app:widget.app)))),
