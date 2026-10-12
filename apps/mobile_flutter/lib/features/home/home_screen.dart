@@ -285,6 +285,17 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _duplicate(String kind,String id) async {
+    final label=kind=='bot'?'Agent':'group';
+    try{
+      await widget.app.api.rpc(kind=='bot'?'bots/duplicate':'groups/duplicate',{
+        if(kind=='bot')'botId':id else 'groupId':id,
+      });
+      await widget.app.refresh();
+      if(mounted)kakaNotice(context,'$label duplicated');
+    }catch(e){if(mounted)kakaNotice(context,e.toString());}
+  }
+
   Widget _botTile(KakaBot bot, int tab) => Padding(
     key: ValueKey('agent-${bot.id}'),
     padding: const EdgeInsets.only(bottom: 9),
@@ -302,6 +313,10 @@ class _HomeScreenState extends State<HomeScreen> {
             Navigator.push(context, MaterialPageRoute<void>(
               builder: (_) => AgentSettingsScreen(api: widget.app.api, bot: bot)))
               .then((_) => widget.app.refresh());
+          }),
+          KakaRow(title: 'Duplicate agent', icon: LucideIcons.copy, onTap: () {
+            Navigator.pop(context);
+            _duplicate('bot',bot.id);
           }),
           KakaRow(title: 'Customize avatar', icon: LucideIcons.smile, onTap: () {
             Navigator.pop(context);
@@ -346,6 +361,17 @@ class _HomeScreenState extends State<HomeScreen> {
     padding: const EdgeInsets.only(bottom: 9),
     child: GestureDetector(
       onTap: () => openGroup(group),
+      onLongPress:()=>kakaSheet<void>(context,Column(
+        mainAxisSize:MainAxisSize.min,children:[
+          Text(group.name,style:Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height:13),
+          KakaRow(title:'Open group',icon:LucideIcons.messageCircle,onTap:(){
+            Navigator.pop(context);openGroup(group);
+          }),
+          KakaRow(title:'Duplicate group',icon:LucideIcons.copy,onTap:(){
+            Navigator.pop(context);_duplicate('group',group.id);
+          }),
+        ])),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(color: KColors.surface,
