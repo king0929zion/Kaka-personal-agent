@@ -6,6 +6,23 @@ import '../../core/api.dart';
 import '../../core/models.dart';
 import '../../design/theme.dart';
 import '../../design/widgets.dart';
+import 'computer_files_screen.dart';
+
+/// Some deployments expose a loopback noVNC capability URL; a remote phone
+/// must open the same host as its authenticated server rather than localhost.
+Uri resolveComputerScreenUri(Uri server, String raw) {
+  var target=server.resolve(raw);
+  if (!['http','https'].contains(target.scheme) || target.userInfo.isNotEmpty) {
+    throw const KakaApiException('Unsupported desktop URL');
+  }
+  const loopback=['localhost','127.0.0.1','::1','[::1]'];
+  if(loopback.contains(target.host.toLowerCase()) &&
+      !loopback.contains(server.host.toLowerCase())) {
+    target=target.replace(host:server.host);
+  }
+  return target;
+}
+
 
 /// Computer controls remain lightweight until the user explicitly opens the
 /// desktop. The expensive embedded browser is never mounted inside chat cards.
@@ -24,6 +41,7 @@ class _ComputerScreenState extends State<ComputerScreen>
   bool loading=true, actionBusy=false;
   Timer? _refreshTimer;
   bool _active=true;
+  bool _desktopOpen=false;
 
   @override
   void initState(){
@@ -31,7 +49,7 @@ class _ComputerScreenState extends State<ComputerScreen>
     WidgetsBinding.instance.addObserver(this);
     _refresh();
     _refreshTimer=Timer.periodic(const Duration(seconds:9),(_){
-      if(_active&&!actionBusy&&!loading)_refresh(silent:true);
+      if(_active&&!_desktopOpen&&!actionBusy&&!loading)_refresh(silent:true);
     });
   }
 
@@ -42,6 +60,7 @@ class _ComputerScreenState extends State<ComputerScreen>
   }
 
   Future<void> _refresh({bool silent=false}) async {
+    if(silent && (loading || !_active || _desktopOpen))return;
     if(!silent && mounted)setState(()=>loading=true);
     try {
       final response=await widget.api.rpc('computer/status',{'botId':widget.bot.id});
@@ -75,7 +94,13 @@ class _ComputerScreenState extends State<ComputerScreen>
     if(actionBusy)return;
     setState(()=>actionBusy=true);
     try{
-      final data=await widget.api.rpc('computer/screenUrl',{'botId':widget.bot.id});
+      dynamic data;
+      for(var attempt=0;attempt<4;attempt++){
+        data=await widget.api.rpc('computer/screenUrl',{'botId':widget.bot.id});
+        if(data is Map && data['url']?.toString().isNotEmpty==true)break;
+        if(attempt<3)await Future<void>.delayed(
+          const Duration(milliseconds:400));
+      }
       if(!mounted)return;
       final raw= data is Map ? data['url']?.toString() : null;
       if(raw==null||raw.isEmpty){
@@ -83,13 +108,16 @@ class _ComputerScreenState extends State<ComputerScreen>
         return;
       }
       final base=Uri.parse(widget.api.baseUrl);
-      final url=base.resolve(raw);
-      if(!['http','https'].contains(url.scheme)){
-        kakaNotice(context,'Unsupported desktop stream URL');return;
-      }
+      final url=resolveComputerScreenUri(base,raw);
       screenUrl=url.toString();
-      await Navigator.push<void>(context,MaterialPageRoute(
-        builder:(_)=>_DesktopView(url:url,title:widget.bot.name)));
+      setState(()=>_desktopOpen=true);
+      try {
+        await Navigator.push<void>(context,MaterialPageRoute(
+          builder:(_)=>_DesktopView(url:url,title:widget.bot.name)));
+      } finally {
+        _desktopOpen=false;
+        if(mounted)unawaited(_refresh(silent:true));
+      }
     }catch(e){
       if(mounted)kakaNotice(context,e.toString());
     }finally{
@@ -109,7 +137,7 @@ class _ComputerScreenState extends State<ComputerScreen>
     final state=status['state']?.toString()??'unknown';
     final control=status['controlHolder']?.toString()??'none';
     final running=state=='running';
-    final hasControl=control=='user';
+    final hasControl=control=='user' && status['controlBotId']==widget.bot.id;
     return Scaffold(
       backgroundColor:KColors.bg,
       body:SafeArea(child:Column(children:[
@@ -146,6 +174,11 @@ class _ComputerScreenState extends State<ComputerScreen>
           KakaSection(title:'DESKTOP',child:Column(children:[
             KakaRow(title:'Open screen',subtitle:running?'Load the desktop on demand':'Start the computer first',
               icon:LucideIcons.monitor,onTap:running?_openDesktop:null),
+            KakaRow(title:'Browse files',subtitle:'On-demand remote file browser',
+              icon:LucideIcons.folder,
+              onTap:running?()=>Navigator.push<void>(context,
+                MaterialPageRoute(builder:(_)=>ComputerFilesScreen(
+                  api:widget.api,botId:widget.bot.id))):null),
             KakaRow(title:'Control status',
               subtitle:hasControl?'You are in control':'Controlled by $control',
               icon:LucideIcons.mousePointer2),
