@@ -40,8 +40,9 @@ class _SearchScreenState extends State<SearchScreen> {
       if(!mounted)return;
       setState(()=>busy=true);
       try{
-        final result=await widget.app.api.rpc('search/query',
-          {'q':query.text.trim().substring(0,query.text.trim().length.clamp(0,200))});
+        final rawQuery=query.text.trim();
+        final safeQuery=rawQuery.length>200?rawQuery.substring(0,200):rawQuery;
+        final result=await widget.app.api.rpc('search/query',{'q':safeQuery});
         if(!mounted||generation!=_generation)return;
         final raw=result is Map?result['hits']:null;
         setState((){
