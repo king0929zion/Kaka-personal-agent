@@ -36,7 +36,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   static const maxQueuedBytes=12*1024*1024;
   final scroll = ScrollController();
   int lastCount = 0;
-  bool focused = false;
+  bool focused=false;
+  bool _realtimePaused=false;
   KakaMessage? replyingTo;
 
   @override
@@ -61,12 +62,18 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   }
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if(state==AppLifecycleState.resumed){
+    // Keyboard overlays and permission dialogs often cause an
+    // inactive/resumed pair. This must not reload all conversation messages.
+    if(state==AppLifecycleState.paused ||
+       state==AppLifecycleState.hidden ||
+       state==AppLifecycleState.detached){
+      if(!_realtimePaused){
+        _realtimePaused=true;
+        thread.pauseRealtime();
+      }
+    }else if(state==AppLifecycleState.resumed && _realtimePaused){
+      _realtimePaused=false;
       unawaited(thread.load());
-    }else if(state==AppLifecycleState.paused||
-             state==AppLifecycleState.inactive||
-             state==AppLifecycleState.hidden){
-      thread.pauseRealtime();
     }
   }
 
@@ -269,6 +276,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                 ]) : const KakaLoadingDots())
           : ListView.builder(
               controller:scroll,
+              key:PageStorageKey('thread-${widget.bot.id}-${widget.group}'),
+              cacheExtent:170,
               padding:const EdgeInsets.fromLTRB(20,9,20,24),
               itemCount:thread.messages.length+1,
               itemBuilder:(ctx,i) {

@@ -1,53 +1,60 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import '../../design/theme.dart';
 import '../../design/widgets.dart';
 
-/// Translate Flutter IME edits to the existing noVNC keyboard bridge's
-/// command protocol. Compare Unicode scalars rather than UTF-16 code units.
+/// Remote noVNC accepts text, individual key events and limited backspaces.
+/// Diff by Unicode scalar, not UTF-16 units (emoji must count once).
+/// Edits in the middle are replayed from their first divergence because the
+/// remote cursor is anchored to the end of this local compose buffer.
 List<Map<String,dynamic>> computerKeyboardCommands(
-    String oldText, String newText, {bool control=false}) {
-  final previous=oldText.runes.toList();
+  String oldText,String newText,{bool control=false}) {
+  final old=oldText.runes.toList();
   final next=newText.replaceAll('\r\n','\n').replaceAll('\r','\n').runes.toList();
-  var prefix=0;
-  while(prefix<previous.length && prefix<next.length &&
-      previous[prefix]==next[prefix]) {
-    prefix++;
+  var common=0;
+  while(common<old.length && common<next.length &&
+      old[common]==next[common]) {common++;}
+  final commands=<Map<String,dynamic>>[];
+  var deleted=old.length-common;
+  var ctrl=control;
+  if(deleted>0 && ctrl) {
+    commands.add({'type':'key','name':'Backspace','control':true});
+    ctrl=false;
+    deleted--;
   }
-  final result=<Map<String,dynamic>>[];
-  final deleted=previous.length-prefix;
-  if(deleted>0) {
-    result.add({'type':'backspace','count':deleted.clamp(1,500)});
+  while(deleted>0){
+    final count=deleted>500?500:deleted;
+    commands.add({'type':'backspace','count':count});
+    deleted-=count;
   }
-  var pendingCtrl=control;
   var plain=StringBuffer();
   void flush(){
-    if(plain.isNotEmpty){
-      result.add({'type':'text','text':plain.toString()});
-      plain=StringBuffer();
-    }
+    if(plain.isEmpty)return;
+    commands.add({'type':'text','text':plain.toString()});
+    plain=StringBuffer();
   }
-  for(var i=prefix;i<next.length;i++){
+  for(var i=common;i<next.length;i++) {
     final char=String.fromCharCode(next[i]);
-    if(char=='\n') {
+    if(char=='\n'){
       flush();
-      result.add({
-        'type':'key','name':'Return',
-        if(pendingCtrl)'control':true,
-      });
-      pendingCtrl=false;
-    } else if(pendingCtrl) {
+      commands.add({'type':'key','name':'Return',if(ctrl)'control':true});
+      ctrl=false;
+    }else if(ctrl){
       flush();
-      result.add({'type':'char','text':char,'control':true});
-      pendingCtrl=false;
-    } else {
-      plain.write(char);
-    }
+      commands.add({'type':'char','text':char,'control':true});
+      ctrl=false;
+    }else{plain.write(char);}
   }
   flush();
-  return result;
+  return commands;
 }
+
+/// Explicitly defined command shapes, matching mobile-keyboard.js. A command
+/// is never evaluated as JavaScript source supplied by the user.
+Map<String,dynamic> computerNamedKey(String name,{bool control=false})=>
+  {'type':'key','name':name,if(control)'control':true};
 
 class ComputerKeyboardBar extends StatefulWidget {
   final bool enabled;
@@ -58,83 +65,117 @@ class ComputerKeyboardBar extends StatefulWidget {
 }
 
 class _ComputerKeyboardBarState extends State<ComputerKeyboardBar> {
-  final _field=TextEditingController(),_focus=FocusNode();
+  final _field=TextEditingController();
+  final _focus=FocusNode();
   String _previous='';
   Future<void> _pending=Future<void>.value();
   bool _control=false;
-  bool _keyboardVisible=false;
+  bool _focused=false;
+  bool _error=false;
+  int _generation=0;
 
   @override
-  void initState() {
+  void initState(){
     super.initState();
     _focus.addListener(_onFocus);
   }
+  void _onFocus(){if(mounted)setState(()=>_focused=_focus.hasFocus);}
 
-  void _onFocus() {
-    if(mounted)setState(()=>_keyboardVisible=_focus.hasFocus);
+  @override
+  void didUpdateWidget(covariant ComputerKeyboardBar oldWidget){
+    super.didUpdateWidget(oldWidget);
+    if(!widget.enabled && oldWidget.enabled){
+      _generation++;
+      _focus.unfocus();
+      _resetLocalDraft();
+      _control=false;
+    }
   }
-
+  void _resetLocalDraft(){
+    _previous='';
+    _field.value=const TextEditingValue();
+  }
   void _enqueue(List<Map<String,dynamic>> commands) {
     if(!widget.enabled || commands.isEmpty)return;
-    _pending=_pending.then((_) async {
+    final generation=_generation;
+    _pending=_pending.catchError((Object _){}).then((_) async {
       for(final command in commands) {
-        if(!mounted || !widget.enabled)return;
-        await widget.send(command);
+        if(!mounted || !widget.enabled || generation!=_generation)return;
+        try {
+          await widget.send(command);
+        }catch(_) {
+          if(mounted)setState(()=>_error=true);
+          return;
+        }
       }
-    }).catchError((Object _){
-      // Navigating away from the remote page may invalidate a queued command.
     });
   }
-
-  void _onText(String value) {
+  void _onTextChanged(String value){
     if(!widget.enabled)return;
-    final changes=computerKeyboardCommands(
-      _previous,value,control:_control);
+    final previous=_previous;
+    final changes=computerKeyboardCommands(previous,value,control:_control);
     if(changes.isNotEmpty){
       _enqueue(changes);
       if(_control)setState(()=>_control=false);
     }
     _previous=value;
-    if(value.runes.length>180) {
-      _previous='';
-      _field.clear();
-    } else if(_field.selection.baseOffset!=value.length ||
-              _field.selection.extentOffset!=value.length) {
+    // A long IME compose history wastes memory and slows every diff. Reset
+    // locally only; remote text is already committed.
+    if(value.runes.length>180){_resetLocalDraft();}
+    else if(_field.selection.baseOffset!=value.length ||
+            _field.selection.extentOffset!=value.length) {
       _field.selection=TextSelection.collapsed(offset:value.length);
     }
   }
-
-  void _key(String name) {
+  void _key(String name){
     if(!widget.enabled)return;
-    if(name=='Control') {
-      setState(()=>_control=!_control);
-      return;
-    }
-    _enqueue([{
-      'type':'key','name':name,
-      if(_control)'control':true,
-    }]);
+    if(name=='Control'){setState(()=>_control=!_control);return;}
+    _enqueue([computerNamedKey(name,control:_control)]);
+    // Explicit remote keys also move the remote caret. The next IME
+    // edit must start from an empty local compose buffer.
+    _resetLocalDraft();
     if(_control)setState(()=>_control=false);
   }
-
-  Widget _keyButton(String title,String name,{bool selected=false})=>
-    Expanded(child:GestureDetector(
-      onTap:widget.enabled?()=>_key(name):null,
-      child:AnimatedContainer(
-        duration:const Duration(milliseconds:170),
-        height:38,alignment:Alignment.center,
-        margin:const EdgeInsets.symmetric(horizontal:2),
-        decoration:BoxDecoration(
-          color:selected?KColors.ink:KColors.soft,
-          borderRadius:BorderRadius.circular(16)),
-        child:Text(title,style:TextStyle(
-          color:selected?Colors.white:widget.enabled?KColors.ink:KColors.muted,
-          fontWeight:FontWeight.w600,fontSize:12)),
-      ),
-    ));
+  Future<void> _paste()async{
+    if(!widget.enabled)return;
+    final data=await Clipboard.getData(Clipboard.kTextPlain);
+    if(!mounted || !widget.enabled)return;
+    final text=data?.text??'';
+    if(text.isEmpty)return;
+    // Do not append to local composing history; paste is a remote action.
+    _enqueue(computerKeyboardCommands('',text,control:_control));
+    if(_control)setState(()=>_control=false);
+    _resetLocalDraft();
+  }
+  void _toggleKeyboard(){
+    if(!widget.enabled)return;
+    if(_focus.hasFocus){
+      _focus.unfocus();
+    }else{
+      _focus.requestFocus();
+      SystemChannels.textInput.invokeMethod<void>('TextInput.show');
+    }
+  }
+  Widget _keyButton(String label,String key,{bool selected=false,
+      double width=45})=>
+    Padding(padding:const EdgeInsets.only(right:5),
+      child:KakaPress(onTap:widget.enabled?()=>_key(key):null,haptic:true,
+        child:AnimatedContainer(
+          duration:const Duration(milliseconds:185),
+          width:width,height:39,
+          alignment:Alignment.center,
+          decoration:BoxDecoration(
+            color:selected?KColors.ink:KColors.soft,
+            borderRadius:BorderRadius.circular(15)),
+          child:Text(label,style:TextStyle(fontSize:13,
+            fontWeight:FontWeight.w600,
+            color:selected?Colors.white:
+              widget.enabled?KColors.ink:KColors.muted)),
+        )));
 
   @override
   void dispose(){
+    ++_generation;
     _focus.removeListener(_onFocus);
     _focus.dispose();
     _field.dispose();
@@ -143,34 +184,63 @@ class _ComputerKeyboardBarState extends State<ComputerKeyboardBar> {
 
   @override
   Widget build(BuildContext context)=>Container(
-    padding:const EdgeInsets.fromLTRB(8,7,8,9),
     decoration:const BoxDecoration(color:KColors.surface,
-      border:Border(top:BorderSide(color:KColors.line,width:.7))),
-    child:Stack(children:[
-      Positioned(left:0,bottom:0,width:1,height:1,child:Opacity(
-        opacity:0,child:TextField(
-          controller:_field,focusNode:_focus,onChanged:_onText,
-          enableSuggestions:false,autocorrect:false,
-          maxLines:null,keyboardType:TextInputType.multiline,
-          textInputAction:TextInputAction.newline,
-        ),
-      )),
+      borderRadius:BorderRadius.vertical(top:Radius.circular(22))),
+    padding:const EdgeInsets.fromLTRB(13,10,13,11),
+    child:Column(mainAxisSize:MainAxisSize.min,children:[
       Row(children:[
-        KakaIconButton(icon:LucideIcons.keyboard,size:38,
-          filled:_keyboardVisible,
-          tooltip:'Toggle remote keyboard',onTap:widget.enabled?(){
-            if(_focus.hasFocus){_focus.unfocus();}
-            else{_focus.requestFocus();}
-          }:null),
-        const SizedBox(width:4),
-        _keyButton('Esc','Escape'),
-        _keyButton('Tab','Tab'),
-        _keyButton('Ctrl','Control',selected:_control),
-        _keyButton('←','ArrowLeft'),
-        _keyButton('↓','ArrowDown'),
-        _keyButton('↑','ArrowUp'),
-        _keyButton('→','ArrowRight'),
+        Expanded(child:Container(
+          height:43,
+          alignment:Alignment.center,
+          decoration:BoxDecoration(color:KColors.soft,
+            borderRadius:BorderRadius.circular(19)),
+          padding:const EdgeInsets.symmetric(horizontal:14),
+          child:TextField(
+            key:const ValueKey('remote-computer-ime'),
+            controller:_field,focusNode:_focus,
+            enabled:widget.enabled,onChanged:_onTextChanged,
+            keyboardType:TextInputType.multiline,
+            textInputAction:TextInputAction.newline,
+            minLines:1,maxLines:2,
+            autocorrect:false,
+            enableSuggestions:false,
+            textCapitalization:TextCapitalization.none,
+            style:const TextStyle(fontSize:14,color:KColors.ink),
+            cursorColor:KColors.ink,
+            decoration:InputDecoration(
+              hintText:widget.enabled?'Type on remote desktop…':'Connecting keyboard…',
+              hintStyle:const TextStyle(color:KColors.muted,fontSize:13),
+              isDense:true,contentPadding:EdgeInsets.zero,
+              border:InputBorder.none),
+          ),
+        )),
+        const SizedBox(width:7),
+        KakaIconButton(icon:_focused?LucideIcons.keyboardOff:LucideIcons.keyboard,
+          size:40,filled:_focused,tooltip:'Toggle Android keyboard',
+          onTap:widget.enabled?_toggleKeyboard:null),
+        KakaIconButton(icon:LucideIcons.clipboardPaste,
+          size:40,tooltip:'Paste to remote computer',
+          onTap:widget.enabled?_paste:null),
       ]),
+      if(_error)const Padding(padding:EdgeInsets.only(top:6),
+        child:Text('Keyboard command failed; check desktop connection.',
+          style:TextStyle(color:KColors.error,fontSize:11))),
+      const SizedBox(height:8),
+      SizedBox(height:39,child:ListView(
+        scrollDirection:Axis.horizontal,
+        physics:const BouncingScrollPhysics(),
+        children:[
+          _keyButton('Esc','Escape'),
+          _keyButton('Tab','Tab'),
+          _keyButton('Ctrl','Control',selected:_control),
+          _keyButton('⌫','Backspace'),
+          _keyButton('↵','Return'),
+          _keyButton('←','ArrowLeft'),
+          _keyButton('↓','ArrowDown'),
+          _keyButton('↑','ArrowUp'),
+          _keyButton('→','ArrowRight'),
+        ],
+      )),
     ]),
   );
 }

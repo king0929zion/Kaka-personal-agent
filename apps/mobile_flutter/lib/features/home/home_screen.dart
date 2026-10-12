@@ -33,10 +33,17 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final query = TextEditingController();
-  bool searching = false;
+  final query=TextEditingController();
+  final _chatsScroll=ScrollController();
+  final _agentsScroll=ScrollController();
+  bool searching=false;
   @override
-  void dispose() { query.dispose(); super.dispose(); }
+  void dispose(){
+    query.dispose();
+    _chatsScroll.dispose();
+    _agentsScroll.dispose();
+    super.dispose();
+  }
 
   void open(KakaBot bot) => Navigator.of(context).push(
     KakaRoute<void>(builder:(context)=>ThreadScreen(
@@ -264,6 +271,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final groupHeader = groups.isNotEmpty ? 1 : 0;
     final count = prefix + bots.length + groupHeader + groups.length;
     return ListView.builder(
+      key:PageStorageKey('kaka-home-list-$tab'),
+      controller:tab==1?_agentsScroll:_chatsScroll,
       cacheExtent: 120,
       addAutomaticKeepAlives: false,
       padding: const EdgeInsets.fromLTRB(18, 0, 18, 125),
