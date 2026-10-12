@@ -495,7 +495,11 @@ Future<T?> kakaSheet<T>(BuildContext context, Widget content, {double? height}) 
       transitionDuration: kakaReduceMotion(context)
           ? const Duration(milliseconds: 150)
           : KakaMotion.sheet,
-      pageBuilder: (ctx, a, b) => Align(
+      pageBuilder: (ctx, a, b) => AnimatedPadding(
+        padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(ctx).bottom),
+        duration: kakaReduceMotion(ctx) ? Duration.zero : KakaMotion.quick,
+        curve: KakaMotion.arrive,
+        child: Align(
         alignment: Alignment.bottomCenter,
         child: Material(
           type: MaterialType.transparency,
@@ -532,7 +536,7 @@ Future<T?> kakaSheet<T>(BuildContext context, Widget content, {double? height}) 
             ),
           ),
         ),
-      ),
+      )),
       transitionBuilder: (ctx, animation, secondary, child) {
         if (kakaReduceMotion(ctx)) {
           return FadeTransition(opacity: animation, child: child);
