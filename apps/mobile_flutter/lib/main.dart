@@ -7,6 +7,9 @@ import 'features/home/home_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  // Cap decoded image cache; uploaded pictures should not fill the process.
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 32 * 1024 * 1024;
+  PaintingBinding.instance.imageCache.maximumSize = 80;
   configureSystemChrome();
   runApp(KakaApp(controller:AppController(KakaApi())..initialize()));
 }

@@ -312,17 +312,50 @@ class _ThreadScreenState extends State<ThreadScreen> {
       'Computer','Tap to review computer activity');
     if(kind=='voice_call')return _blockCard(LucideIcons.audioLines,
       'Voice call','${block['status'] ?? 'Call activity'}');
-    if(kind=='progress'||kind=='steps'){
-      return _blockCard(LucideIcons.loaderCircle,'Working',
-        '${block['text'] ?? block['state'] ?? 'Agent is working'}');
+    if(kind=='card') {
+      final lines=block['lines'] is List?block['lines'] as List:const [];
+      return Container(
+        margin:const EdgeInsets.symmetric(vertical:5),
+        padding:const EdgeInsets.symmetric(horizontal:16,vertical:12),
+        decoration:BoxDecoration(color:KColors.surface,
+          border:Border.all(color:KColors.line),
+          borderRadius:BorderRadius.circular(22)),
+        child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          for(final line in lines.whereType<Map>()) Padding(
+            padding:const EdgeInsets.symmetric(vertical:6),
+            child:Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
+              SizedBox(width:90,child:Text('${line['k'] ?? ''}',
+                style:const TextStyle(color:KColors.muted,fontSize:12))),
+              Expanded(child:Text('${line['v'] ?? ''}',
+                style:const TextStyle(fontSize:13,color:KColors.ink))),
+            ])),
+        ]));
     }
-    if(kind=='ask'||kind=='choice'||kind=='mcp_approval'){
+    if(kind=='steps') {
+      final steps=block['steps'] is List?block['steps'] as List:const [];
+      final summary=steps.whereType<Map>().map((step)=>
+        '${step['label'] ?? ''}' +
+          ((step['count'] is num && step['count'] > 1)
+            ? ' ×${step['count']}' : '')).join('  ·  ');
+      return _blockCard(LucideIcons.listChecks,'Steps',summary);
+    }
+    if(kind=='progress')return _blockCard(LucideIcons.loaderCircle,
+      'Working','${block['text'] ?? 'Agent is working'}');
+    if(kind=='subagent'||kind=='cloud_agent'||kind=='child_bot'||kind=='handoff')
+      return _blockCard(LucideIcons.bot,
+        '${block['name'] ?? block['title'] ?? _labelFor(kind)}',
+        '${block['progress'] ?? block['result'] ?? block['task'] ?? block['status'] ?? 'Agent activity'}');
+    if(kind=='mcp_approval')return _blockCard(LucideIcons.shieldCheck,
+      '${block['name'] ?? 'MCP connection'}',
+      '${block['status'] ?? 'pending'} · Review in MCP settings');
+    if(kind=='ask'||kind=='choice'){
       final raw=block['options'] is List ? block['options'] as List : const [];
       final actions=raw.whereType<Map>().map((opt)=>
         (id:'${opt['id'] ?? ''}',label:'${opt['label'] ?? opt['title'] ?? opt['id'] ?? ''}')).toList();
       final askActions=block['actions'] is List?block['actions'] as List:const [];
       final effective=actions.isNotEmpty?actions:askActions.whereType<Map>().map((a)=>
         (id:'${a['id'] ?? ''}',label:'${a['label'] ?? a['id'] ?? ''}')).toList();
+      final answered=block['status']=='answered' || block['answerId']!=null;
       return Container(margin:const EdgeInsets.symmetric(vertical:6),
         padding:const EdgeInsets.all(16),
         decoration:BoxDecoration(color:KColors.surface,
@@ -331,18 +364,51 @@ class _ThreadScreenState extends State<ThreadScreen> {
           Text('${block['question'] ?? block['text'] ?? 'Approval required'}',
             style:const TextStyle(fontWeight:FontWeight.w600,fontSize:14)),
           const SizedBox(height:10),
-          for(final action in effective)
-            Padding(padding:const EdgeInsets.only(bottom:7),
-              child:KakaButton(title:action.label,onPressed:()=>answer(message,action.id),
-                filled:false)),
-          if(effective.isEmpty)
-            const Text('Open in the existing client to complete this action.',
-              style:TextStyle(fontSize:12,color:KColors.muted)),
+          if(answered)
+            const Padding(padding:EdgeInsets.only(top:5),
+              child:Text('Answered',style:TextStyle(fontSize:12,color:KColors.muted)))
+          else ...[
+            for(final action in effective)
+              Padding(padding:const EdgeInsets.only(bottom:7),
+                child:KakaButton(title:action.label,
+                  onPressed:()=>answer(message,action.id),filled:false)),
+            if(effective.isEmpty)
+              KakaButton(title:'Respond',filled:false,
+                onPressed:()=>_answerInput(message,block)),
+          ],
         ]));
     }
     if(kind=='meta')return const SizedBox.shrink();
     return _blockCard(_iconFor(kind),_labelFor(kind),
       '${block['title'] ?? block['text'] ?? block['state'] ?? block['status'] ?? 'Agent activity'}');
+  }
+
+  Future<void> _answerInput(KakaMessage message, Map<String,dynamic> block) async {
+    final input=TextEditingController();
+    final secret=block['input']=='secret';
+    try {
+      await kakaSheet<void>(context,SingleChildScrollView(
+        child:Column(mainAxisSize:MainAxisSize.min,
+          crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+            Text('Your response',style:Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height:8),
+            Text('${block['text'] ?? 'Provide a response'}',
+              style:const TextStyle(color:KColors.muted,fontSize:13)),
+            const SizedBox(height:18),
+            KakaField(controller:input,label:secret?'Private response':'Answer',
+              obscure:secret),
+            const SizedBox(height:16),
+            KakaButton(title:'Send response',onPressed:() async {
+              if(input.text.trim().isEmpty)return;
+              final response=input.text;
+              Navigator.of(context).pop();
+              await answer(message,response);
+            }),
+          ]),
+      ));
+    }finally {
+      WidgetsBinding.instance.addPostFrameCallback((_){input.dispose();});
+    }
   }
 
   IconData _iconFor(String kind) {
