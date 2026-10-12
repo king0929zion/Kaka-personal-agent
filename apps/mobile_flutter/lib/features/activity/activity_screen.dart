@@ -4,11 +4,13 @@ import '../../app/app_controller.dart';
 import '../../core/models.dart';
 import '../../design/theme.dart';
 import '../../design/widgets.dart';
+import '../../design/kinetic_interactions.dart';
 import '../thread/thread_screen.dart';
 
 class ActivityScreen extends StatefulWidget {
   final AppController app;
-  const ActivityScreen({super.key,required this.app});
+  final bool embedded;
+  const ActivityScreen({super.key,required this.app,this.embedded=false});
   @override
   State<ActivityScreen> createState()=>_ActivityScreenState();
 }
@@ -54,10 +56,9 @@ class _ActivityScreenState extends State<ActivityScreen> {
       ThreadScreen(api:widget.app.api,bot:pseudo,group:group)));
   }
   @override
-  Widget build(BuildContext context)=>Scaffold(
-    backgroundColor:KColors.bg,
-    body:SafeArea(child:Column(children:[
-      Padding(padding:const EdgeInsets.fromLTRB(14,11,16,16),
+  Widget build(BuildContext context) {
+    final body=Column(children:[
+      if(!widget.embedded) Padding(padding:const EdgeInsets.fromLTRB(14,11,16,16),
         child:Row(children:[
           KakaIconButton(icon:LucideIcons.arrowLeft,onTap:()=>Navigator.pop(context)),
           const SizedBox(width:10),
@@ -81,9 +82,10 @@ class _ActivityScreenState extends State<ActivityScreen> {
       ])),
       const SizedBox(height:12),
       if(loading)const KakaLoadingRail(),
-      Expanded(child:RefreshIndicator(onRefresh:_refresh,color:KColors.ink,
+      Expanded(child:KakaPullToRefresh(onRefresh:_refresh,
         child:ListView.builder(
-          padding:const EdgeInsets.fromLTRB(22,8,22,30),
+          physics:const AlwaysScrollableScrollPhysics(parent:ClampingScrollPhysics()),
+          padding:EdgeInsets.fromLTRB(22,8,22,widget.embedded?140:30),
           itemCount:runs.isEmpty?1:runs.length,
           itemBuilder:(context,index){
             if(runs.isEmpty)return Padding(padding:const EdgeInsets.only(top:70),
@@ -120,6 +122,12 @@ class _ActivityScreenState extends State<ActivityScreen> {
                 ])),
             );
           }))),
-    ])),
-  );
+    ]);
+    return widget.embedded
+        ? KakaContentWidth(child:body)
+        : Scaffold(
+            backgroundColor:KColors.bg,
+            body:SafeArea(child:KakaContentWidth(child:body)),
+          );
+  }
 }

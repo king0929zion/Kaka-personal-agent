@@ -131,22 +131,25 @@ class _AgentSettingsScreenState extends State<AgentSettingsScreen> {
   }
 
   @override
-  Widget build(BuildContext context)=>Scaffold(
+  Widget build(BuildContext context)=>KakaDepthStage(child:Scaffold(
     backgroundColor:KColors.bg,
     body:SafeArea(child:Column(children:[
-      Padding(padding:const EdgeInsets.fromLTRB(14,12,18,15),child:Row(children:[
-        KakaIconButton(icon:LucideIcons.arrowLeft,onTap:()=>Navigator.pop(context)),
-        const SizedBox(width:10),
-        Expanded(child:Text('Agent settings',style:Theme.of(context).textTheme.titleLarge)),
-        KakaIconButton(icon:LucideIcons.check,filled:true,onTap:saving?null:_save),
-      ])),
+      KakaPageHeader(
+        title:Text('Agent settings',
+          style:Theme.of(context).textTheme.titleLarge),
+        actions:[
+          KakaIconButton(icon:LucideIcons.check,filled:true,
+            tooltip:'Save agent',onTap:saving?null:_save),
+        ],
+      ),
       Expanded(child:loading?const Center(child:KakaLoadingDots())
-        :ListView(padding:const EdgeInsets.fromLTRB(22,12,22,40),children:[
+        :KakaContentWidth(child:ListView(padding:const EdgeInsets.fromLTRB(KLayout.pageGutter,12,KLayout.pageGutter,40),children:[
           Center(child:AgentAvatar(botId:widget.bot.id,size:94)),
           const SizedBox(height:12),
-          Center(child:KakaButton(title:'Customize avatar',filled:false,
-            onPressed:()=>Navigator.of(context).push(MaterialPageRoute<void>(
-              builder:(_)=>AvatarEditor(bot:widget.bot))))),
+          Center(child:SizedBox(width:194,
+            child:KakaButton(title:'Customize avatar',filled:false,
+              onPressed:()=>Navigator.of(context).push(MaterialPageRoute<void>(
+                builder:(_)=>AvatarEditor(bot:widget.bot)))))),
           const SizedBox(height:26),
           KakaField(controller:name,label:'Name'),
           const SizedBox(height:14),
@@ -172,9 +175,11 @@ class _AgentSettingsScreenState extends State<AgentSettingsScreen> {
             KakaRow(title:'Model',subtitle:modelId ?? 'Workspace default',
               icon:LucideIcons.cpu,onTap:_chooseModel),
             KakaRow(title:'Pin agent',icon:LucideIcons.pin,
+              onTap:()=>setState(()=>pinned=!pinned),
               trailing:KakaSwitch(value:pinned,
                 onChanged:(v)=>setState(()=>pinned=v))),
             KakaRow(title:'Notify when finished',icon:LucideIcons.bell,
+              onTap:()=>setState(()=>notifyOnFinish=!notifyOnFinish),
               trailing:KakaSwitch(value:notifyOnFinish,
                 onChanged:(v)=>setState(()=>notifyOnFinish=v))),
           ])),
@@ -184,7 +189,7 @@ class _AgentSettingsScreenState extends State<AgentSettingsScreen> {
           KakaButton(title:'Save changes',busy:saving,onPressed:_save),
           const SizedBox(height:12),
           KakaButton(title:'Archive agent',filled:false,onPressed:_archive),
-        ])),
+        ]))),
     ])),
-  );
+  ));
 }

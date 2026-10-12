@@ -12,6 +12,40 @@ abstract final class KColors {
   static const error = Color(0xFFC74141);
 }
 
+/// Shared visual geometry. A control has two sizes: its visible artwork and
+/// its (larger) hit target. Keep spacing optical, not just numerically equal.
+abstract final class KLayout {
+  static const double pageGutter = 22;
+  static const double compactGutter = 16;
+  static const double maxContentWidth = 720;
+  static const double minTouchTarget = 48;
+  static const double listGap = 10;
+  static const double sectionGap = 24;
+  static const double trailingIcon = 18;
+  static const double bodyText = 16;
+  static const double secondaryText = 13;
+}
+
+/// Center readable content on tablets without stretching a phone layout
+/// across the entire screen. On phones this fills all available width.
+class KakaContentWidth extends StatelessWidget {
+  final Widget child;
+  final double maxWidth;
+  const KakaContentWidth({
+    super.key,
+    required this.child,
+    this.maxWidth = KLayout.maxContentWidth,
+  });
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth),
+      child: SizedBox(width: double.infinity, child: child),
+    ),
+  );
+}
+
 abstract final class KRadius {
   static const card = 30.0;
   static const sheet = 40.0;
@@ -27,7 +61,7 @@ ThemeData kakaTheme() => ThemeData(
   focusColor: Colors.transparent,
   hoverColor: Colors.transparent,
   shadowColor: Colors.transparent,
-  dialogBackgroundColor: KColors.surface,
+  dialogTheme: const DialogThemeData(backgroundColor: KColors.surface),
   cardColor: KColors.surface,
   listTileTheme: const ListTileThemeData(contentPadding: EdgeInsets.zero),
   visualDensity: VisualDensity.standard,

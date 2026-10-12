@@ -109,18 +109,19 @@ class _AccountScreenState extends State<AccountScreen> {
     }
   }
   @override
-  Widget build(BuildContext context)=>Scaffold(
+  Widget build(BuildContext context)=>KakaDepthStage(child:Scaffold(
     backgroundColor:KColors.bg,
     body:SafeArea(child:Column(children:[
-      Padding(padding:const EdgeInsets.fromLTRB(12,12,15,16),child:Row(children:[
-        KakaIconButton(icon:LucideIcons.arrowLeft,
-          onTap:()=>Navigator.pop(context)),
-        const SizedBox(width:9),
-        Expanded(child:Text('Account',style:Theme.of(context).textTheme.headlineMedium)),
-        KakaIconButton(icon:LucideIcons.refreshCw,onTap:_refresh),
-      ])),
+      KakaPageHeader(
+        title:Text('Account',
+          style:Theme.of(context).textTheme.titleLarge),
+        actions:[
+          KakaIconButton(icon:LucideIcons.refreshCw,
+            tooltip:'Refresh account',onTap:_refresh),
+        ],
+      ),
       if(loading)const KakaLoadingRail(),
-      Expanded(child:ListView(padding:const EdgeInsets.fromLTRB(22,12,22,36),children:[
+      Expanded(child:KakaContentWidth(child:ListView(padding:const EdgeInsets.fromLTRB(KLayout.pageGutter,12,KLayout.pageGutter,36),children:[
         if(error!=null)Text(error!,
           style:const TextStyle(color:KColors.error,fontSize:13)),
         Container(
@@ -150,7 +151,7 @@ class _AccountScreenState extends State<AccountScreen> {
           KakaRow(title:'Delete account',icon:LucideIcons.trash2,
             onTap:_deleteAccount),
         ])),
-      ])),
+      ]))),
     ])),
-  );
+  ));
 }
