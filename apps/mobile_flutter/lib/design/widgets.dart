@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'dart:math' as math;
+import 'package:flutter/physics.dart';
 import '../core/performance_prefs.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -484,79 +485,214 @@ class KakaRow extends StatelessWidget {
   );
 }
 
-/// Solid, rounded sheet: a nearly opaque dialog does not need an
-/// additional full-area backdrop blur on every transition frame.
+/// A single visual depth shared by Kaka's custom dialog routes and page
+/// surfaces. The navigator stays unscaled, so sheets always remain crisp.
+abstract final class KakaSheetDepth {
+  static final ValueNotifier<double> progress = ValueNotifier<double>(0);
+}
+
+/// Underlay moves back 8%, rounds its corners, and dims without blurring
+/// the whole live chat. The page subtree itself remains mounted.
+class KakaDepthStage extends StatelessWidget {
+  final Widget child;
+  const KakaDepthStage({super.key,required this.child});
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder<double>(
+    valueListenable:KakaSheetDepth.progress,
+    child:child,
+    builder:(context,progress,page) {
+      if (progress<=.001) return page!;
+      final t=progress.clamp(0.0,1.0);
+      return ColoredBox(
+        color:KColors.ink,
+        child:Stack(children:[
+          Positioned.fill(child:Transform.scale(
+            scale:1-.08*t,
+            child:ClipRRect(
+              borderRadius:BorderRadius.circular(32*t),
+              child:page!,
+            ),
+          )),
+          Positioned.fill(child:IgnorePointer(child:ColoredBox(
+            color:Colors.black.withValues(alpha:.16*t),
+          ))),
+        ]),
+      );
+    },
+  );
+}
+
+class _KakaSheetSpringCurve extends Curve {
+  const _KakaSheetSpringCurve();
+  @override
+  double transformInternal(double t) {
+    if (t<=0) return 0;
+    if (t>=1) return 1;
+    return SpringSimulation(
+      const SpringDescription(mass:1,stiffness:265,damping:23),
+      0,1,0,
+    ).x(t*.42);
+  }
+}
+
+class _KakaDraggableSheet extends StatefulWidget {
+  final Animation<double> animation;
+  final Widget child;
+  const _KakaDraggableSheet({required this.animation,required this.child});
+  @override
+  State<_KakaDraggableSheet> createState()=>_KakaDraggableSheetState();
+}
+
+class _KakaDraggableSheetState extends State<_KakaDraggableSheet>
+    with SingleTickerProviderStateMixin {
+  final _surfaceKey=GlobalKey();
+  late final AnimationController _drag =
+      AnimationController.unbounded(vsync:this);
+  double get _height =>
+      (_surfaceKey.currentContext?.findRenderObject() is RenderBox)
+          ? (_surfaceKey.currentContext!.findRenderObject()! as RenderBox).size.height
+          : MediaQuery.sizeOf(context).height*.75;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.animation.addListener(_syncDepth);
+    _drag.addListener(_syncDepth);
+  }
+
+  @override
+  void didUpdateWidget(covariant _KakaDraggableSheet oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if(oldWidget.animation!=widget.animation) {
+      oldWidget.animation.removeListener(_syncDepth);
+      widget.animation.addListener(_syncDepth);
+    }
+  }
+
+  void _syncDepth() {
+    final route=widget.animation.value.clamp(0.0,1.0);
+    final factor=(1-_drag.value/math.max(1,_height)).clamp(0.0,1.0);
+    final next=(route*factor).clamp(0.0,1.0);
+    if ((KakaSheetDepth.progress.value-next).abs()>.001) {
+      KakaSheetDepth.progress.value=next;
+    }
+  }
+
+  void _dragUpdate(DragUpdateDetails details) {
+    if(kakaReduceMotion(context))return;
+    _drag.stop();
+    final delta=details.primaryDelta??0;
+    // Pulling up is possible but deliberately more resistant.
+    _drag.value=(_drag.value+(delta<0?delta*.22:delta)).clamp(-34.0,_height);
+  }
+
+  void _dragEnd(DragEndDetails details) {
+    final velocity=details.primaryVelocity??0.0;
+    if (_drag.value>_height/3 || velocity>950) {
+      Navigator.of(context).pop();
+      return;
+    }
+    if(kakaReduceMotion(context)) {
+      _drag.value=0;
+    } else {
+      _drag.animateWith(SpringSimulation(
+        const SpringDescription(mass:1,stiffness:310,damping:24),
+        _drag.value,0,velocity,
+      ));
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.animation.removeListener(_syncDepth);
+    _drag.removeListener(_syncDepth);
+    _drag.dispose();
+    KakaSheetDepth.progress.value=0;
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation:Listenable.merge([widget.animation,_drag]),
+    child:widget.child,
+    builder:(context,child) {
+      final reduced=kakaReduceMotion(context);
+      final progress=reduced
+          ? widget.animation.value
+          : const _KakaSheetSpringCurve().transform(widget.animation.value);
+      final entry=math.min(_height,MediaQuery.sizeOf(context).height*.9);
+      return Transform.translate(
+        offset:Offset(0,(1-progress)*entry+_drag.value),
+        child:GestureDetector(
+          behavior:HitTestBehavior.translucent,
+          onVerticalDragUpdate:_dragUpdate,
+          onVerticalDragEnd:_dragEnd,
+          child:KeyedSubtree(key:_surfaceKey,child:child!),
+        ),
+      );
+    },
+  );
+}
+
+/// Custom bottom sheet. A real spring samples the entering position while the
+/// parent page retreats in sync; drag gestures can dismiss or spring back.
 Future<T?> kakaSheet<T>(BuildContext context, Widget content, {double? height}) =>
     showGeneralDialog<T>(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: 'Dismiss',
-      barrierColor: const Color(0x62000000),
-      transitionDuration: kakaReduceMotion(context)
-          ? const Duration(milliseconds: 150)
-          : KakaMotion.sheet,
-      pageBuilder: (ctx, a, b) => AnimatedPadding(
-        padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(ctx).bottom),
-        duration: kakaReduceMotion(ctx) ? Duration.zero : KakaMotion.quick,
-        curve: KakaMotion.arrive,
-        child: Align(
-        alignment: Alignment.bottomCenter,
-        child: Material(
-          type: MaterialType.transparency,
-          child: SafeArea(
-            top: false,
-            child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(KRadius.sheet),
-              ),
-              child: Container(
-                width: double.infinity,
-                height: height,
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.sizeOf(ctx).height * .90,
-                ),
-                padding: const EdgeInsets.fromLTRB(21, 13, 21, 25),
-                color: Colors.white.withValues(alpha: .98),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 32,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: KColors.ink.withValues(alpha: .11),
-                        borderRadius: BorderRadius.circular(9),
+      context:context,
+      barrierDismissible:true,
+      barrierLabel:'Dismiss',
+      barrierColor:const Color(0x62000000),
+      transitionDuration:kakaReduceMotion(context)
+          ? const Duration(milliseconds:180)
+          : const Duration(milliseconds:400),
+      pageBuilder:(ctx,a,b)=>AnimatedPadding(
+        padding:EdgeInsets.only(bottom:MediaQuery.viewInsetsOf(ctx).bottom),
+        duration:kakaReduceMotion(ctx)?Duration.zero:KakaMotion.quick,
+        curve:KakaMotion.arrive,
+        child:Align(
+          alignment:Alignment.bottomCenter,
+          child:Material(
+            type:MaterialType.transparency,
+            child:SafeArea(
+              top:false,
+              child:ClipRRect(
+                borderRadius:const BorderRadius.vertical(
+                  top:Radius.circular(KRadius.sheet)),
+                child:Container(
+                  width:double.infinity,
+                  height:height,
+                  constraints:BoxConstraints(
+                    maxHeight:MediaQuery.sizeOf(ctx).height*.90),
+                  padding:const EdgeInsets.fromLTRB(21,13,21,25),
+                  color:Colors.white.withValues(alpha:.98),
+                  child:Column(
+                    mainAxisSize:MainAxisSize.min,
+                    children:[
+                      Semantics(
+                        label:'Drag down to close',
+                        child:Container(
+                          width:54,height:28,
+                          alignment:Alignment.topCenter,
+                          child:Container(
+                            width:34,height:4,
+                            decoration:BoxDecoration(
+                              color:KColors.ink.withValues(alpha:.15),
+                              borderRadius:BorderRadius.circular(9)),
+                          ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 22),
-                    Flexible(child: content),
-                  ],
+                      const SizedBox(height:8),
+                      Flexible(child:content),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
         ),
-      )),
-      transitionBuilder: (ctx, animation, secondary, child) {
-        if (kakaReduceMotion(ctx)) {
-          return FadeTransition(opacity: animation, child: child);
-        }
-        final eased = CurvedAnimation(
-          parent: animation,
-          curve: KakaMotion.arrive,
-          reverseCurve: KakaMotion.depart,
-        );
-        return FadeTransition(
-          opacity: Tween<double>(begin: .72, end: 1).animate(eased),
-          child: SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(0, .09),
-              end: Offset.zero,
-            ).animate(eased),
-            child: child,
-          ),
-        );
-      },
+      ),
+      transitionBuilder:(ctx,animation,secondary,child)=>
+        _KakaDraggableSheet(animation:animation,child:child),
     );
 
 /// Lightweight animated notice; removes its OverlayEntry and ticker on exit.
