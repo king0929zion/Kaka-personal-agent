@@ -26,7 +26,7 @@ void main() {
       find.descendant(
         of: find.byType(KakaProgressiveBlur),
         matching: find.byType(DecoratedBox),
-      ).single,
+      ),
     );
     final gradient = (box.decoration as BoxDecoration).gradient!
         as LinearGradient;
