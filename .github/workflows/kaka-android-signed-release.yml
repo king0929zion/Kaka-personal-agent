@@ -1,0 +1,131 @@
+name: Kaka Android stable signed Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kaka-android-stable-release
+  cancel-in-progress: false
+
+jobs:
+  signed-arm64:
+    name: Build and verify fixed-certificate ARM64 APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout trusted main
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Validate encrypted repository secrets
+        env:
+          KAKA_ANDROID_KEYSTORE_BASE64: ${{ secrets.KAKA_ANDROID_KEYSTORE_BASE64 }}
+          KAKA_ANDROID_STORE_PASSWORD: ${{ secrets.KAKA_ANDROID_STORE_PASSWORD }}
+          KAKA_ANDROID_KEY_PASSWORD: ${{ secrets.KAKA_ANDROID_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$KAKA_ANDROID_KEYSTORE_BASE64" || { echo "Missing secret: KAKA_ANDROID_KEYSTORE_BASE64"; exit 1; }
+          test -n "$KAKA_ANDROID_STORE_PASSWORD" || { echo "Missing secret: KAKA_ANDROID_STORE_PASSWORD"; exit 1; }
+          test -n "$KAKA_ANDROID_KEY_PASSWORD" || { echo "Missing secret: KAKA_ANDROID_KEY_PASSWORD"; exit 1; }
+
+      - name: Restore secret keystore to runner temporary storage
+        shell: bash
+        env:
+          KAKA_ANDROID_KEYSTORE_BASE64: ${{ secrets.KAKA_ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          umask 077
+          printf '%s' "$KAKA_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/kaka-release.jks"
+          test -s "$RUNNER_TEMP/kaka-release.jks"
+          chmod 600 "$RUNNER_TEMP/kaka-release.jks"
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Verify the expected original Kaka signing certificate
+        shell: bash
+        env:
+          KAKA_ANDROID_STORE_PASSWORD: ${{ secrets.KAKA_ANDROID_STORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          expected='6bcef40257e8efffc46a695cd867017c8567596b5d2f6ac303e84293279c2dc4'
+          result="$(keytool -list -v -keystore "$RUNNER_TEMP/kaka-release.jks" -alias kaka-release -storepass:env KAKA_ANDROID_STORE_PASSWORD)"
+          actual="$(printf '%s\n' "$result" | sed -n 's/^[[:space:]]*SHA256: //p' | head -n1 | tr -d ':' | tr '[:upper:]' '[:lower:]')"
+          if [[ "$actual" != "$expected" ]]; then
+            echo 'ERROR: Wrong Kaka release certificate. Signed build stopped.'
+            exit 1
+          fi
+          echo 'Original Kaka release certificate verified.'
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Bootstrap native Android project
+        working-directory: apps/mobile_flutter
+        run: bash scripts/bootstrap_android.sh
+
+      - name: Flutter analyzer
+        working-directory: apps/mobile_flutter
+        run: flutter analyze --no-fatal-infos
+
+      - name: Flutter tests
+        working-directory: apps/mobile_flutter
+        run: flutter test
+
+      - name: Build stable-signed ARM64 Release
+        working-directory: apps/mobile_flutter
+        shell: bash
+        env:
+          KAKA_ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/kaka-release.jks
+          KAKA_ANDROID_STORE_PASSWORD: ${{ secrets.KAKA_ANDROID_STORE_PASSWORD }}
+          KAKA_ANDROID_KEY_PASSWORD: ${{ secrets.KAKA_ANDROID_KEY_PASSWORD }}
+          KAKA_ANDROID_KEY_ALIAS: kaka-release
+        run: |
+          set -euo pipefail
+          # Monotonically increasing per-workflow versionCode for upgrades.
+          build_number="$((10000 + GITHUB_RUN_NUMBER))"
+          flutter build apk --release --target-platform android-arm64 --build-number="$build_number"
+
+      - name: Verify APK signature and public certificate fingerprint
+        working-directory: apps/mobile_flutter
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="build/app/outputs/flutter-apk/app-release.apk"
+          test -s "$apk"
+          signer="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name apksigner -type f | sort -V | tail -n1)"
+          test -n "$signer"
+          "$signer" verify --verbose --print-certs "$apk" > "$RUNNER_TEMP/kaka-apk-verify.txt"
+          grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' "$RUNNER_TEMP/kaka-apk-verify.txt"
+          actual="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/kaka-apk-verify.txt" | head -n1 | tr '[:upper:]' '[:lower:]' | tr -d ':')"
+          expected='6bcef40257e8efffc46a695cd867017c8567596b5d2f6ac303e84293279c2dc4'
+          if [[ "$actual" != "$expected" ]]; then
+            echo 'ERROR: APK signature certificate does not match the permanent Kaka key.'
+            exit 1
+          fi
+          echo 'APK Signature Scheme v2 verified; Kaka release certificate matches.'
+
+      - name: Upload stable-signed ARM64 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: kaka-android-arm64-stable-SIGNED-${{ github.run_number }}
+          path: apps/mobile_flutter/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Delete temporary signing material
+        if: always()
+        shell: bash
+        run: |
+          rm -f "$RUNNER_TEMP/kaka-release.jks" "$RUNNER_TEMP/kaka-apk-verify.txt"
