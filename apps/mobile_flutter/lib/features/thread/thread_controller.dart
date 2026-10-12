@@ -21,6 +21,8 @@ class ThreadController extends ChangeNotifier {
   KakaThread? snapshot;
   String? error;
   bool sending = false;
+  bool stopping = false;
+  bool get canStop => ['running','started','queued','waiting_input','waiting_takeover'].contains(snapshot?.runStatus);
   bool fetchingMore = false;
   StreamSubscription<KakaThreadEvent>? _events;
   Timer? _renderDebounce;
@@ -91,6 +93,9 @@ class ThreadController extends ChangeNotifier {
         e.type == 'thread.message.created' ||
         e.type == 'thread.message.updated' ||
         e.type == 'thread.progress' ||
+        e.type == 'agent.tool.called' ||
+        e.type == 'run.waiting_input' ||
+        e.type == 'computer.takeover.requested' ||
         e.type.startsWith('run.');
     if (!isContentEvent) {
       if (seq != old.cursor) {
@@ -107,15 +112,21 @@ class ThreadController extends ChangeNotifier {
       runStatus = null;
     } else if (e.type == 'thread.message.created' || e.type == 'thread.message.updated') {
       final id = '${e.payload['messageId'] ?? e.id ?? 'event:$seq'}';
+      messages.removeWhere((m)=>m.id == 'progress:${e.runId ?? botId}');
       final data = <String, dynamic>{...e.payload,'id':id,
         'botId':e.botId ?? e.payload['botId']};
       final message = KakaMessage.fromJson(data);
       final idx = messages.indexWhere((m) => m.id == id);
       if (idx < 0) { messages.add(message); }
       else { messages[idx] = message; }
-    } else if (e.type == 'thread.progress') {
+    } else if(e.type == 'run.waiting_input' || e.type == 'computer.takeover.requested') {
+      runStatus=e.type=='run.waiting_input'?'waiting_input':'waiting_takeover';
+      messages.removeWhere((m)=>m.id == 'progress:${e.runId ?? botId}');
+    } else if (e.type == 'thread.progress' || e.type == 'agent.tool.called') {
       final id = 'progress:${e.runId ?? botId}';
-      final text = '${e.payload['text'] ?? e.payload['message'] ?? 'Working…'}';
+      final text=e.type=='agent.tool.called'
+          ? '${e.payload['name'] ?? 'Using a tool'}'
+          : '${e.payload['text'] ?? e.payload['message'] ?? 'Working…'}';
       final progress = KakaMessage(
         id:id, role:'bot', botId:e.botId, runId:e.runId,
         blocks:[{'kind':'progress','text':text, 'activity':true}]);
@@ -123,7 +134,7 @@ class ThreadController extends ChangeNotifier {
       messages.add(progress);
       runStatus = 'running';
     } else if (e.type.startsWith('run.')) {
-      runStatus = e.type.substring(4);
+      runStatus = e.type == 'run.started' ? 'running' : e.type.substring(4);
       if (e.type == 'run.completed' || e.type == 'run.failed' ||
           e.type == 'run.cancelled') {
         messages.removeWhere((m) => m.id == 'progress:${e.runId ?? botId}');
@@ -132,10 +143,14 @@ class ThreadController extends ChangeNotifier {
     snapshot = KakaThread(threadId:old.threadId, cursor:seq,
       olderCursor:old.olderCursor, messages:messages, runStatus:runStatus);
     _publish(streaming: e.type == 'thread.progress' ||
+      e.type == 'agent.tool.called' ||
       e.type == 'thread.message.updated');
   }
 
-  Future<void> send(String text, {List<PendingAttachment> attachments = const []}) async {
+  Future<void> send(String text, {
+    List<PendingAttachment> attachments = const [],
+    String? replyToMessageId, String? replyQuote,
+  }) async {
     if ((text.trim().isEmpty && attachments.isEmpty) || sending) return;
     sending = true; error = null; notifyListeners();
     final uploaded=<String>[];
@@ -145,7 +160,8 @@ class ThreadController extends ChangeNotifier {
         uploaded.add(await api.createArtifact(botId,group:group,
           name:item.name,mimeType:item.mimeType,bytes:item.bytes));
       }
-      await api.send(botId, text.trim(),group:group,artifactIds:uploaded);
+      await api.send(botId, text.trim(),group:group,artifactIds:uploaded,
+        replyToMessageId:replyToMessageId,replyQuote:replyQuote);
       delivered=true;
       // Refresh ensures optimistic/committed delivery agrees with server.
       final next = await api.thread(botId,group:group);
@@ -163,6 +179,19 @@ class ThreadController extends ChangeNotifier {
       }
     } finally {
       if (!_disposed) { sending = false; notifyListeners(); }
+    }
+  }
+
+  Future<void> stop() async {
+    if(stopping || !canStop)return;
+    stopping=true; notifyListeners();
+    try {
+      await api.rpc('threads/stop',target);
+      await load();
+    }catch(e){
+      error=e.toString();
+    }finally{
+      if(!_disposed){stopping=false;notifyListeners();}
     }
   }
 

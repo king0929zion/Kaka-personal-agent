@@ -170,9 +170,14 @@ class KakaApi {
     return KakaThread.fromJson(Map<String, dynamic>.from(data as Map));
   }
 
-  Future<void> send(String targetId, String message, {bool group = false, String? nonce, List<String> artifactIds = const []}) async {
+  Future<void> send(String targetId, String message, {bool group = false,
+    String? nonce, List<String> artifactIds = const [],
+    String? replyToMessageId, String? replyQuote}) async {
     await rpc('threads/send', {...(group ? {'groupId':targetId} : {'botId':targetId}), 'text':message,
       if (artifactIds.isNotEmpty) 'artifactIds':artifactIds,
+      if (replyToMessageId != null) 'replyToMessageId':replyToMessageId,
+      if (replyToMessageId != null && replyQuote != null && replyQuote.isNotEmpty)
+        'replyQuote':replyQuote,
       'clientNonce':nonce ?? 'flutter-${DateTime.now().microsecondsSinceEpoch}'});
   }
 

@@ -45,16 +45,18 @@ class KakaGroup {
 
 class KakaMessage {
   final String id, role;
-  final String? botId, createdAt, runId;
+  final String? botId, createdAt, runId, replyToMessageId, replyQuote;
   final List<Map<String, dynamic>> blocks;
   const KakaMessage({
     required this.id, required this.role, required this.blocks,
-    this.botId, this.createdAt, this.runId,
+    this.botId, this.createdAt, this.runId, this.replyToMessageId, this.replyQuote,
   });
   factory KakaMessage.fromJson(Map<String, dynamic> m) => KakaMessage(
     id: '${m['id'] ?? ''}', role: '${m['role'] ?? 'bot'}',
     botId: m['botId']?.toString(), createdAt: m['createdAt']?.toString(),
     runId: m['runId']?.toString(),
+    replyToMessageId: m['replyToMessageId']?.toString(),
+    replyQuote: m['replyQuote']?.toString(),
     blocks: (m['blocks'] is List ? m['blocks'] as List : const [])
         .whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList(),
   );

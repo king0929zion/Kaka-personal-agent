@@ -32,6 +32,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   final scroll = ScrollController();
   int lastCount = 0;
   bool focused = false;
+  KakaMessage? replyingTo;
 
   @override
   void initState() {
@@ -76,8 +77,11 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     if (text.isEmpty && attachments.isEmpty) return;
     final files=List<PendingAttachment>.from(attachments);
     draft.clear();
-    await thread.send(text,attachments:files);
-    if (thread.error == null && mounted) setState(attachments.clear);
+    await thread.send(text,attachments:files,
+      replyToMessageId:replyingTo?.id,replyQuote:replyingTo?.text);
+    if (thread.error == null && mounted) setState(() {
+      attachments.clear(); replyingTo=null;
+    });
     if (!mounted) return;
     if (thread.error != null && draft.text.isEmpty) {
       draft.text = text;
@@ -253,6 +257,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           maxLines:1,overflow:TextOverflow.ellipsis,
           style:const TextStyle(fontSize:12,color:KColors.muted)),
       ])),
+      if(thread.canStop)KakaIconButton(icon:LucideIcons.square,
+        filled:true,size:40,tooltip:'Stop generation',onTap:thread.stop),
       KakaIconButton(icon:LucideIcons.ellipsis,
         onTap:()=>kakaSheet<void>(context,Column(mainAxisSize:MainAxisSize.min,children:[
           KakaRow(title:'Customize avatar',icon:LucideIcons.smile,onTap:(){
@@ -308,7 +314,17 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
               decoration:user?BoxDecoration(color:KColors.soft,
                 borderRadius:BorderRadius.circular(25)):null,
               child:Column(crossAxisAlignment:CrossAxisAlignment.start,
-                children:message.blocks.map((block)=>_renderBlock(message,block)).toList()),
+                children:[
+                  if(message.replyQuote!=null && message.replyQuote!.isNotEmpty)
+                    Container(padding:const EdgeInsets.symmetric(horizontal:11,vertical:8),
+                      margin:const EdgeInsets.only(bottom:8),
+                      decoration:BoxDecoration(color:KColors.soft,
+                        borderRadius:BorderRadius.circular(12)),
+                      child:Text(message.replyQuote!,maxLines:3,
+                        overflow:TextOverflow.ellipsis,
+                        style:const TextStyle(color:KColors.muted,fontSize:12))),
+                  ...message.blocks.map((block)=>_renderBlock(message,block)),
+                ]),
             ),
           )),
         ]),
@@ -482,7 +498,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       }),
       KakaRow(title:'Reply with quote',icon:LucideIcons.reply,onTap:(){
         Navigator.pop(context);
-        draft.text='> ${text.length>180?text.substring(0,180):text}\n\n';
+        setState(()=>replyingTo=message);
       }),
       KakaRow(title:'Select text',icon:LucideIcons.textSelect,onTap:(){
         Navigator.pop(context);
@@ -492,9 +508,21 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     ]));
   }
 
-  Widget _composer() => Padding(padding:EdgeInsets.fromLTRB(16,5,16,
-      MediaQuery.viewInsetsOf(context).bottom>0?8:17),
+  Widget _composer() => Padding(padding:const EdgeInsets.fromLTRB(16,5,16,12),
       child:Column(mainAxisSize:MainAxisSize.min,children:[
+        if(replyingTo!=null) Container(
+          margin:const EdgeInsets.only(bottom:8),
+          padding:const EdgeInsets.symmetric(horizontal:13,vertical:9),
+          decoration:BoxDecoration(color:KColors.soft,borderRadius:BorderRadius.circular(16)),
+          child:Row(children:[
+            const Icon(LucideIcons.reply,size:17,color:KColors.muted),
+            const SizedBox(width:9),
+            Expanded(child:Text(replyingTo!.text.isEmpty?'Reply to message':replyingTo!.text,
+              maxLines:1,overflow:TextOverflow.ellipsis,
+              style:const TextStyle(fontSize:12,color:KColors.ink))),
+            KakaIconButton(icon:LucideIcons.x,size:32,tooltip:'Remove reply',
+              onTap:()=>setState(()=>replyingTo=null)),
+          ])),
         if(attachments.isNotEmpty) SingleChildScrollView(
           scrollDirection:Axis.horizontal,
           child:Row(children:[
