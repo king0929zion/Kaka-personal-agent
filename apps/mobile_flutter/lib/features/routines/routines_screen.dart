@@ -173,7 +173,7 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
           _remove(item);
         }),
       ]),
-    )));
+    ));
   }
 
   @override
