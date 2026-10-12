@@ -234,7 +234,8 @@ class KakaApi {
           failures = 0;
           var frame = StringBuffer();
           await for (final line in response.stream.transform(utf8.decoder)
-              .transform(const LineSplitter())) {
+              .transform(const LineSplitter())
+              .timeout(const Duration(seconds:45))) {
             if (line.length > 262144) {
               throw const KakaApiException('Oversized realtime event');
             }

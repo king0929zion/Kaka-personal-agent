@@ -25,7 +25,7 @@ class ThreadScreen extends StatefulWidget {
   State<ThreadScreen> createState() => _ThreadScreenState();
 }
 
-class _ThreadScreenState extends State<ThreadScreen> {
+class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver {
   late final ThreadController thread = ThreadController(widget.api, widget.bot.id, group:widget.group);
   final draft = TextEditingController();
   final attachments=<PendingAttachment>[];
@@ -36,6 +36,7 @@ class _ThreadScreenState extends State<ThreadScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     thread.addListener(_onUpdate);
     unawaited(thread.load());
   }
@@ -53,7 +54,19 @@ class _ThreadScreenState extends State<ThreadScreen> {
     }
   }
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if(state==AppLifecycleState.resumed){
+      unawaited(thread.load());
+    }else if(state==AppLifecycleState.paused||
+             state==AppLifecycleState.inactive||
+             state==AppLifecycleState.hidden){
+      thread.pauseRealtime();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     thread.removeListener(_onUpdate);
     thread.dispose(); draft.dispose(); scroll.dispose();
     super.dispose();

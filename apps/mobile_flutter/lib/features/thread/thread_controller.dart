@@ -63,6 +63,14 @@ class ThreadController extends ChangeNotifier {
     }
   }
 
+  void pauseRealtime() {
+    ++_epoch; // discard events arriving after unsubscribe
+    _events?.cancel();
+    _events=null;
+    _renderDebounce?.cancel();
+    _renderDebounce=null;
+  }
+
   void _listen(int fromCursor, int epoch) {
     _events = api.events(botId, fromCursor, group:group).listen((event) {
       if (_disposed || epoch != _epoch) return;
