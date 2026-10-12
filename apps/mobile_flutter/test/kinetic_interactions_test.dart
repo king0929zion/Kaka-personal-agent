@@ -76,6 +76,27 @@ void main() {
     expect(tester.takeException(),isNull);
   });
 
+  testWidgets('dragging the sheet downward dismisses it', (tester) async {
+    await tester.pumpWidget(_host(Builder(
+      builder:(context)=>KakaDepthStage(child:Center(
+        child:ElevatedButton(
+          onPressed:()=>kakaSheet<void>(context,
+            const Text('Drag to close')),
+          child:const Text('Open sheet'),
+        ),
+      )),
+    )));
+    await tester.tap(find.text('Open sheet'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds:450));
+    expect(find.text('Drag to close'),findsOneWidget);
+    await tester.drag(find.text('Drag to close'),const Offset(0,120));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds:480));
+    expect(find.text('Drag to close'),findsNothing);
+    expect(KakaSheetDepth.progress.value,closeTo(0,.02));
+  });
+
   testWidgets('sheet elevation reduces background scale when opened',
     (tester) async {
     await tester.pumpWidget(_host(Builder(
