@@ -141,6 +141,41 @@ void main() {
     api.dispose();
   });
 
+  test('partial streaming update retains original message timestamp', () {
+    final api = _FakeThreadApi();
+    final controller = ThreadController(api, 'bot-1');
+    controller.snapshot = KakaThread(
+      threadId: 'thread-1',
+      cursor: 3,
+      messages: [
+        KakaMessage(
+          id: 'msg1',
+          role: 'bot',
+          createdAt: '2026-10-12T00:00:00.000Z',
+          blocks: [
+            {'kind': 'text', 'text': 'before'},
+          ],
+        ),
+      ],
+    );
+    controller.apply(KakaThreadEvent({
+      'type': 'thread.message.updated',
+      'seq': 4,
+      'id': 'msg1',
+      'payload': {
+        'messageId': 'msg1',
+        'blocks': [
+          {'kind': 'text', 'text': 'after'},
+        ],
+      },
+    }));
+    expect(controller.messages.single.createdAt,
+        '2026-10-12T00:00:00.000Z');
+    expect(controller.messages.single.text, 'after');
+    controller.dispose();
+    api.dispose();
+  });
+
   test('HTTP response cannot rewind live event cursor', () async {
     final api = _FakeThreadApi();
     final controller = ThreadController(api, 'bot-1');
