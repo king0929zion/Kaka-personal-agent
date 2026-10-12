@@ -583,6 +583,18 @@ class _KakaDraggableSheetState extends State<_KakaDraggableSheet>
     }
   }
 
+  void _tapDown(TapDownDetails details) {
+    // GeneralDialog may size its page to the entire overlay even if the
+    // actual sheet is small. Hit-test the keyed sheet's *visual bounds*,
+    // rather than letting an invisible fullscreen page swallow barrier taps.
+    final render=widget.surfaceKey.currentContext?.findRenderObject();
+    if(render is! RenderBox || !render.hasSize)return;
+    final bounds=render.localToGlobal(Offset.zero) & render.size;
+    if(!bounds.contains(details.globalPosition)){
+      Navigator.of(context).maybePop();
+    }
+  }
+
   void _dragUpdate(DragUpdateDetails details) {
     if(kakaReduceMotion(context))return;
     _drag.stop();
@@ -632,6 +644,7 @@ class _KakaDraggableSheetState extends State<_KakaDraggableSheet>
           offset:Offset(0,(1-progress)*entry+_drag.value),
           child:GestureDetector(
             behavior:HitTestBehavior.opaque,
+            onTapDown:_tapDown,
             onVerticalDragUpdate:_dragUpdate,
             onVerticalDragEnd:_dragEnd,
             child:AnimatedPadding(
