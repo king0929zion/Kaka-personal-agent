@@ -78,8 +78,45 @@ class _ComputerKeyboardBarState extends State<ComputerKeyboardBar> {
   void initState(){
     super.initState();
     _focus.addListener(_onFocus);
+    _field.addListener(_onFieldValue);
+    HardwareKeyboard.instance.addHandler(_handlePhysicalKey);
   }
   void _onFocus(){if(mounted)setState(()=>_focused=_focus.hasFocus);}
+
+  /// A Bluetooth/USB keyboard must send special keys to noVNC, not navigate
+  /// between Flutter controls or edit only the local IME composition.
+  bool _handlePhysicalKey(KeyEvent event){
+    if(!mounted || !widget.enabled || !_focus.hasFocus ||
+       (event is! KeyDownEvent && event is! KeyRepeatEvent))return false;
+    final key=event.logicalKey;
+    final mapped=<LogicalKeyboardKey,String>{
+      LogicalKeyboardKey.escape:'Escape',
+      LogicalKeyboardKey.tab:'Tab',
+      LogicalKeyboardKey.enter:'Return',
+      LogicalKeyboardKey.numpadEnter:'Return',
+      LogicalKeyboardKey.backspace:'Backspace',
+      LogicalKeyboardKey.arrowLeft:'ArrowLeft',
+      LogicalKeyboardKey.arrowRight:'ArrowRight',
+      LogicalKeyboardKey.arrowUp:'ArrowUp',
+      LogicalKeyboardKey.arrowDown:'ArrowDown',
+    };
+    final remote=mapped[key];
+    final physicalControl=HardwareKeyboard.instance.isControlPressed;
+    if(remote!=null){
+      _enqueue([computerNamedKey(remote,control:physicalControl||_control)]);
+      _resetLocalDraft();
+      if(_control)setState(()=>_control=false);
+      return true;
+    }
+    if(physicalControl && key.keyLabel.length==1){
+      final label=key.keyLabel.toLowerCase();
+      _enqueue([{'type':'char','text':label,'control':true}]);
+      _resetLocalDraft();
+      if(_control)setState(()=>_control=false);
+      return true;
+    }
+    return false;
+  }
 
   @override
   void didUpdateWidget(covariant ComputerKeyboardBar oldWidget){
@@ -110,6 +147,16 @@ class _ComputerKeyboardBarState extends State<ComputerKeyboardBar> {
       }
     });
   }
+  /// Flutter IMEs emit intermediate composing values while converting
+  /// Pinyin/Japanese/Korean. Send only committed input; a listener also fires
+  /// if the committed string equals the last composing string.
+  void _onFieldValue(){
+    if(!widget.enabled)return;
+    final value=_field.value;
+    if(value.composing.isValid && !value.composing.isCollapsed)return;
+    _onTextChanged(value.text);
+  }
+
   void _onTextChanged(String value){
     if(!widget.enabled)return;
     final previous=_previous;
@@ -176,7 +223,9 @@ class _ComputerKeyboardBarState extends State<ComputerKeyboardBar> {
   @override
   void dispose(){
     ++_generation;
+    HardwareKeyboard.instance.removeHandler(_handlePhysicalKey);
     _focus.removeListener(_onFocus);
+    _field.removeListener(_onFieldValue);
     _focus.dispose();
     _field.dispose();
     super.dispose();
@@ -198,10 +247,12 @@ class _ComputerKeyboardBarState extends State<ComputerKeyboardBar> {
           child:TextField(
             key:const ValueKey('remote-computer-ime'),
             controller:_field,focusNode:_focus,
-            enabled:widget.enabled,onChanged:_onTextChanged,
-            keyboardType:TextInputType.multiline,
-            textInputAction:TextInputAction.newline,
-            minLines:1,maxLines:2,
+            enabled:widget.enabled,
+            keyboardType:TextInputType.text,
+            textInputAction:TextInputAction.send,
+            maxLines:1,
+            onEditingComplete:(){},
+            onSubmitted:(_)=>_key('Return'),
             autocorrect:false,
             enableSuggestions:false,
             textCapitalization:TextCapitalization.none,

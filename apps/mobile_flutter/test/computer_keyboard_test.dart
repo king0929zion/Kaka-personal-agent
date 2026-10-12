@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kaka_flutter/features/computer/computer_keyboard_bar.dart';
 
@@ -93,4 +94,39 @@ void main(){
       expect(commands,isEmpty);
     });
 
+  testWidgets('IME does not send unfinished CJK composition',(tester)async{
+    final commands=<Map<String,dynamic>>[];
+    await tester.pumpWidget(MaterialApp(home:Scaffold(body:
+      ComputerKeyboardBar(enabled:true,send:(c)async{commands.add(c);}),
+    )));
+    final field=tester.widget<TextField>(
+      find.byKey(const ValueKey('remote-computer-ime')));
+    final editor=field.controller!;
+    editor.value=const TextEditingValue(
+      text:'ni',
+      selection:TextSelection.collapsed(offset:2),
+      composing:TextRange(start:0,end:2),
+    );
+    await tester.pump();
+    expect(commands,isEmpty);
+    editor.value=const TextEditingValue(
+      text:'你',
+      selection:TextSelection.collapsed(offset:1),
+    );
+    await tester.pump();
+    expect(commands,contains({'type':'text','text':'你'}));
+  });
+
+  testWidgets('physical Escape key controls remote desktop',(tester)async{
+    final commands=<Map<String,dynamic>>[];
+    await tester.pumpWidget(MaterialApp(home:Scaffold(body:
+      ComputerKeyboardBar(enabled:true,send:(c)async{commands.add(c);}),
+    )));
+    final input=find.byKey(const ValueKey('remote-computer-ime'));
+    await tester.showKeyboard(input);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+    expect(commands,contains({'type':'key','name':'Escape'}));
+  });
 }
+
