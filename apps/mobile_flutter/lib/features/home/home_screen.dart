@@ -17,6 +17,7 @@ import '../search/search_screen.dart';
 import '../activity/activity_screen.dart';
 import '../spaces/spaces_screen.dart';
 import '../archives/archived_screen.dart';
+import '../artifacts/artifact_library_screen.dart';
 import '../memory/memory_screen.dart';
 import '../agents/agent_settings_screen.dart';
 
@@ -404,6 +405,9 @@ class _HomeScreenState extends State<HomeScreen> {
     ])),
     const SizedBox(height:20),
     KakaSection(title:'APP',child:Column(children:[
+      KakaRow(title:'Files',icon:LucideIcons.folder,
+        onTap:()=>Navigator.push(context,MaterialPageRoute<void>(
+          builder:(_)=>ArtifactLibraryScreen(api:widget.app.api)))),
       KakaRow(title:'Memory',icon:LucideIcons.notebookText,
         onTap:()=>Navigator.push(context,MaterialPageRoute<void>(
           builder:(_)=>MemoryScreen(api:widget.app.api)))),
