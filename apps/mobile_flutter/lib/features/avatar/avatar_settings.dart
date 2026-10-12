@@ -16,10 +16,23 @@ class AvatarRepository {
   static final changed=ValueNotifier<int>(0);
   static final _cache=<String,AvatarProfile>{};
   static final _loading=<String,Future<AvatarProfile>>{};
+  static const _cacheLimit = 96;
+
+  static void _remember(String id, AvatarProfile profile) {
+    _cache.remove(id);
+    _cache[id] = profile;
+    while (_cache.length > _cacheLimit) {
+      _cache.remove(_cache.keys.first);
+    }
+  }
 
   static AvatarProfile? cached(String botId)=>_cache[botId];
   static Future<AvatarProfile> load(String botId) {
-    if(_cache.containsKey(botId))return Future.value(_cache[botId]!);
+    if(_cache.containsKey(botId)){
+      final value=_cache[botId]!;
+      _remember(botId,value);
+      return Future.value(value);
+    }
     return _loading.putIfAbsent(botId,() async {
       try {
         final entries=await Future.wait([
@@ -33,12 +46,12 @@ class AvatarRepository {
           expression:int.tryParse(entries[1]??'')??0,
           color:int.tryParse(entries[2]??'')??-1,
           stateIndex:int.tryParse(entries[3]??'')??0);
-        _cache[botId]=result;
+        _remember(botId,result);
         changed.value++;
         return result;
       }catch(_){
         const result=AvatarProfile();
-        _cache[botId]=result;
+        _remember(botId,result);
         changed.value++;
         return result;
       }finally{
@@ -53,7 +66,7 @@ class AvatarRepository {
       _store.write(key:'kaka.avatar.$botId.color',value:'${profile.color}'),
       _store.write(key:'kaka.avatar.$botId.state',value:'${profile.stateIndex}'),
     ]);
-    _cache[botId]=profile;
+    _remember(botId,profile);
     changed.value++;
   }
 }

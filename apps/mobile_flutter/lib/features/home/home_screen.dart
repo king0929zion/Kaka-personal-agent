@@ -131,86 +131,136 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     });
 
+  // Lazily builds visible rows. Previously every agent (and every avatar ticker)
+  // was mounted at once through ListView(children: ...).
   Widget _list(int tab) {
-    final filter=query.text.trim().toLowerCase();
-    final bots=widget.app.bots.where((b)=>
-      b.name.toLowerCase().contains(filter)||b.preview.toLowerCase().contains(filter)).toList();
-    return ListView(padding:const EdgeInsets.fromLTRB(18,0,18,125),children:[
-      if(widget.app.error!=null) Padding(padding:const EdgeInsets.symmetric(vertical:12,horizontal:5),
-        child:Text(widget.app.error!,style:const TextStyle(color:KColors.error,fontSize:13))),
-      if(bots.isEmpty) Padding(padding:const EdgeInsets.only(top:90),
-        child:Column(children:[
-          const OrganicAvatar(size:78),
-          const SizedBox(height:22),
-          Text('Nothing here yet',style:Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height:8),
-          const Text('Create an agent to get started.',
-            style:TextStyle(color:KColors.muted,fontSize:14)),
-        ])),
-      for(final bot in bots) Padding(padding:const EdgeInsets.only(bottom:9),
-        child:GestureDetector(
-          onTap:()=>open(bot),
-          onLongPress:()=>kakaSheet<void>(context,Column(
-            mainAxisSize:MainAxisSize.min,children:[
-              Text(bot.name,style:Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height:14),
-              KakaRow(title:'Open chat',icon:LucideIcons.messageCircle,onTap:(){
-                Navigator.pop(context);open(bot);}),
-              KakaRow(title:'Agent settings',icon:LucideIcons.settings2,onTap:(){
-                Navigator.pop(context);
-                Navigator.push(context,MaterialPageRoute<void>(
-                  builder:(_)=>AgentSettingsScreen(api:widget.app.api,bot:bot)))
-                  .then((_){widget.app.refresh();});
-              }),
-              KakaRow(title:'Customize avatar',icon:LucideIcons.smile,onTap:(){
-                Navigator.pop(context);
-                Navigator.push(context,MaterialPageRoute<void>(
-                  builder:(_)=>AvatarEditor(bot:bot)));}),
-            ])),
-          child:Container(
-            padding:const EdgeInsets.all(15),
-            decoration:BoxDecoration(color:KColors.surface,borderRadius:BorderRadius.circular(25)),
-            child:Row(children:[
-              AgentAvatar(botId:bot.id,size:51,fallbackColor:_color(bot.color),working:
-                ['running','leased','queued'].contains(bot.status)),
-              const SizedBox(width:14),
-              Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-                Row(children:[
-                  Flexible(child:Text(bot.name,overflow:TextOverflow.ellipsis,
-                    style:const TextStyle(fontSize:16,fontWeight:FontWeight.w600,color:KColors.ink))),
-                  if(bot.unread) Container(margin:const EdgeInsets.only(left:7),
-                    width:6,height:6,decoration:const BoxDecoration(
-                      color:KColors.ink,shape:BoxShape.circle)),
-                ]),
-                if(tab==1&&bot.title.isNotEmpty) Padding(padding:const EdgeInsets.only(top:4),
-                  child:Text(bot.title,maxLines:1,overflow:TextOverflow.ellipsis,
-                    style:const TextStyle(color:KColors.muted,fontSize:13))),
-                if(tab==0) Padding(padding:const EdgeInsets.only(top:4),
-                  child:Text(bot.preview.isEmpty?'Start a conversation':bot.preview,
-                    maxLines:1,overflow:TextOverflow.ellipsis,
-                    style:const TextStyle(color:KColors.muted,fontSize:13))),
-              ])),
-              const SizedBox(width:8),
-              const Icon(LucideIcons.chevronRight,color:KColors.muted,size:17),
-            ])),
-        )),
-      if(tab==0&&widget.app.groups.isNotEmpty) ...[
-        const Padding(padding:EdgeInsets.fromLTRB(7,18,0,12),
-          child:Text('GROUPS',style:TextStyle(fontSize:12,color:KColors.muted))),
-        for(final group in widget.app.groups)
-          Padding(padding:const EdgeInsets.only(bottom:9),
-            child:GestureDetector(onTap:()=>openGroup(group),
-              child:Container(padding:const EdgeInsets.all(16),
-                decoration:BoxDecoration(color:KColors.surface,borderRadius:BorderRadius.circular(25)),
-                child:Row(children:[
-                  const Icon(LucideIcons.users,size:24,color:KColors.ink),
-                  const SizedBox(width:14),
-                  Expanded(child:Text(group.name,style:const TextStyle(fontSize:16))),
-                  const Icon(LucideIcons.chevronRight,size:17,color:KColors.muted),
-                ])))),
-      ],
-    ]);
+    final filter = query.text.trim().toLowerCase();
+    final bots = widget.app.bots.where((b) =>
+        b.name.toLowerCase().contains(filter) ||
+        b.preview.toLowerCase().contains(filter)).toList();
+    final groups = tab == 0
+        ? widget.app.groups.where((g) =>
+            g.name.toLowerCase().contains(filter) ||
+            g.preview.toLowerCase().contains(filter)).toList()
+        : <KakaGroup>[];
+    final hasError = widget.app.error != null;
+    final empty = bots.isEmpty && groups.isEmpty;
+    final prefix = (hasError ? 1 : 0) + (empty ? 1 : 0);
+    final groupHeader = groups.isNotEmpty ? 1 : 0;
+    final count = prefix + bots.length + groupHeader + groups.length;
+    return ListView.builder(
+      cacheExtent: 120,
+      addAutomaticKeepAlives: false,
+      padding: const EdgeInsets.fromLTRB(18, 0, 18, 125),
+      itemCount: count,
+      itemBuilder: (context, index) {
+        var cursor = index;
+        if (hasError) {
+          if (cursor == 0) return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 5),
+            child: Text(widget.app.error!,
+              style: const TextStyle(color: KColors.error, fontSize: 13)));
+          cursor--;
+        }
+        if (empty) {
+          return Padding(
+            padding: const EdgeInsets.only(top: 85),
+            child: Column(children: [
+              const OrganicAvatar(size: 78),
+              const SizedBox(height: 22),
+              Text('Nothing here yet', style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 8),
+              const Text('Create an agent to get started.',
+                style: TextStyle(color: KColors.muted, fontSize: 14)),
+            ]));
+        }
+        if (cursor < bots.length) return _botTile(bots[cursor], tab);
+        cursor -= bots.length;
+        if (groups.isNotEmpty && cursor == 0) {
+          return const Padding(padding: EdgeInsets.fromLTRB(7, 18, 0, 12),
+            child: Text('GROUPS',
+              style: TextStyle(fontSize: 12, color: KColors.muted)));
+        }
+        if (groups.isNotEmpty) return _groupTile(groups[cursor - 1]);
+        return const SizedBox.shrink();
+      },
+    );
   }
+
+  Widget _botTile(KakaBot bot, int tab) => Padding(
+    key: ValueKey('agent-${bot.id}'),
+    padding: const EdgeInsets.only(bottom: 9),
+    child: GestureDetector(
+      onTap: () => open(bot),
+      onLongPress: () => kakaSheet<void>(context, Column(
+        mainAxisSize: MainAxisSize.min, children: [
+          Text(bot.name, style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 14),
+          KakaRow(title: 'Open chat', icon: LucideIcons.messageCircle, onTap: () {
+            Navigator.pop(context); open(bot);
+          }),
+          KakaRow(title: 'Agent settings', icon: LucideIcons.settings2, onTap: () {
+            Navigator.pop(context);
+            Navigator.push(context, MaterialPageRoute<void>(
+              builder: (_) => AgentSettingsScreen(api: widget.app.api, bot: bot)))
+              .then((_) => widget.app.refresh());
+          }),
+          KakaRow(title: 'Customize avatar', icon: LucideIcons.smile, onTap: () {
+            Navigator.pop(context);
+            Navigator.push(context, MaterialPageRoute<void>(
+              builder: (_) => AvatarEditor(bot: bot)));
+          }),
+        ])),
+      child: Container(
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(color: KColors.surface,
+          borderRadius: BorderRadius.circular(25)),
+        child: Row(children: [
+          AgentAvatar(botId: bot.id, size: 51, fallbackColor: _color(bot.color),
+            working: ['running', 'leased', 'queued'].contains(bot.status)),
+          const SizedBox(width: 14),
+          Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Flexible(child: Text(bot.name, overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600,
+                    color: KColors.ink))),
+                if (bot.unread) Container(
+                  margin: const EdgeInsets.only(left: 7),
+                  width: 6, height: 6,
+                  decoration: const BoxDecoration(color: KColors.ink, shape: BoxShape.circle)),
+              ]),
+              const SizedBox(height: 4),
+              Text(tab == 1 && bot.title.isNotEmpty ? bot.title
+                : bot.preview.isEmpty ? 'Start a conversation' : bot.preview,
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 13, color: KColors.muted)),
+            ])),
+          const SizedBox(width: 8),
+          const Icon(LucideIcons.chevronRight, size: 17, color: KColors.muted),
+        ]),
+      ),
+    ));
+
+  Widget _groupTile(KakaGroup group) => Padding(
+    key: ValueKey('group-${group.id}'),
+    padding: const EdgeInsets.only(bottom: 9),
+    child: GestureDetector(
+      onTap: () => openGroup(group),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(color: KColors.surface,
+          borderRadius: BorderRadius.circular(25)),
+        child: Row(children: [
+          const Icon(LucideIcons.users, size: 24, color: KColors.ink),
+          const SizedBox(width: 14),
+          Expanded(child: Text(group.name, style: const TextStyle(fontSize: 16))),
+          const Icon(LucideIcons.chevronRight, size: 17, color: KColors.muted),
+        ]),
+      ),
+    ));
+
   Widget _bottomNav(int tab) => Padding(
     padding:const EdgeInsets.symmetric(horizontal:22),
     child:Row(children:[

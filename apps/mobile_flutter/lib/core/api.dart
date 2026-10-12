@@ -203,42 +203,70 @@ class KakaApi {
 
   /// Server uses POST + application/json for authenticated SSE.
   /// Each frame wraps the event in {json: ...}; heartbeat frames do not advance cursor.
-  Stream<KakaThreadEvent> events(String targetId, int fromCursor, {bool group = false}) async* {
+  // Dedicated SSE client: cancellation releases the socket and decode buffers.
+  Stream<KakaThreadEvent> events(String targetId, int fromCursor,
+      {bool group = false}) async* {
+    final subscribedBase = baseUrl;
+    final subscribedToken = token;
+    final subscribedSpace = spaceId;
+    final headers = Map<String, String>.from(_headers);
+    final target = group ? <String,dynamic>{'groupId':targetId}
+      : <String,dynamic>{'botId':targetId};
+    final streamClient = http.Client();
     int cursor = fromCursor;
-    while (true) {
-      try {
-        final request = http.Request('POST', Uri.parse('$baseUrl/rpc/threads/subscribe'));
-        request.headers.addAll({..._headers, 'accept':'text/event-stream'});
-        request.body = jsonEncode({'json': {...(group ? {'groupId':targetId} : {'botId':targetId}), 'cursor':cursor}});
-        final response = await _client.send(request);
-        if (response.statusCode >= 400) {
-          throw KakaApiException('Event stream unavailable', response.statusCode);
-        }
-        final frame = StringBuffer();
-        await for (final line in response.stream.transform(utf8.decoder).transform(const LineSplitter())) {
-          if (line.isEmpty) {
+    var failures = 0;
+    try {
+      while (baseUrl == subscribedBase && token == subscribedToken &&
+          spaceId == subscribedSpace) {
+        try {
+          final request = http.Request('POST',
+            Uri.parse('$subscribedBase/rpc/threads/subscribe'));
+          request.headers.addAll({...headers, 'accept':'text/event-stream'});
+          request.body = jsonEncode({'json': {...target, 'cursor':cursor}});
+          final response = await streamClient.send(request);
+          if (response.statusCode >= 400) {
+            throw KakaApiException('Event stream unavailable', response.statusCode);
+          }
+          failures = 0;
+          var frame = StringBuffer();
+          await for (final line in response.stream.transform(utf8.decoder)
+              .transform(const LineSplitter())) {
+            if (line.length > 262144) {
+              throw const KakaApiException('Oversized realtime event');
+            }
+            if (line.isNotEmpty) {
+              if (line.startsWith('data:')) {
+                frame.write(line.substring(5).trim());
+                if (frame.length > 262144) {
+                  throw const KakaApiException('Oversized realtime event');
+                }
+              }
+              continue;
+            }
             final data = frame.toString();
-            frame.clear();
+            frame = StringBuffer();
             if (data.isEmpty || data == '[DONE]') continue;
             try {
               final decoded = jsonDecode(data);
-              if (decoded is Map && decoded['json'] is Map) {
-                final event = KakaThreadEvent(Map<String, dynamic>.from(decoded['json'] as Map));
-                if (event.type == 'heartbeat' || event.type.isEmpty) continue;
-                if (event.seq != null && event.seq! <= cursor) continue;
-                if (event.seq != null) cursor = event.seq!;
-                yield event;
-              }
-            } catch (_) { /* Invalid keepalive frame */ }
-          } else if (line.startsWith('data:')) {
-            frame.write(line.substring(5).trim());
+              if (decoded is! Map || decoded['json'] is! Map) continue;
+              final event = KakaThreadEvent(
+                Map<String, dynamic>.from(decoded['json'] as Map));
+              if (event.type.isEmpty || event.type == 'heartbeat') continue;
+              if (event.seq != null && event.seq! <= cursor) continue;
+              if (event.seq != null) cursor = event.seq!;
+              yield event;
+            } on FormatException {
+              // Malformed keepalive frame: ignore.
+            }
           }
+        } catch (error) {
+          if (error is KakaApiException && error.status == 401) rethrow;
         }
-      } catch (error) {
-        // A broken network connection must not kill the thread.
-        if (error is KakaApiException && error.status == 401) rethrow;
+        failures = (failures + 1).clamp(1, 4);
+        await Future<void>.delayed(Duration(seconds: failures * 2));
       }
-      await Future<void>.delayed(const Duration(seconds: 2));
+    } finally {
+      streamClient.close();
     }
   }
   void dispose() => _client.close();

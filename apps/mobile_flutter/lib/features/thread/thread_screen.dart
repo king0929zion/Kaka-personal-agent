@@ -158,7 +158,7 @@ class _ThreadScreenState extends State<ThreadScreen> {
     backgroundColor:KColors.bg,
     resizeToAvoidBottomInset:true,
     body:SafeArea(child:Column(children:[
-      _header(),
+      AnimatedBuilder(animation:thread,builder:(context,_)=>_header()),
       Expanded(child:AnimatedBuilder(animation:thread,builder:(context,_) =>
         thread.snapshot == null
           ? Center(child:thread.error!=null
@@ -189,7 +189,8 @@ class _ThreadScreenState extends State<ThreadScreen> {
                       ])),
                   ]);
                 }
-                return _message(thread.messages[i-1]);
+                final message=thread.messages[i-1];
+                return RepaintBoundary(key:ValueKey(message.id),child:_message(message));
               },
             ))),
       AnimatedBuilder(animation:thread,builder:(context,_) =>
@@ -389,8 +390,7 @@ class _ThreadScreenState extends State<ThreadScreen> {
     ]));
   }
 
-  Widget _composer() => AnimatedBuilder(animation:thread,builder:(context,_) =>
-    Padding(padding:EdgeInsets.fromLTRB(16,5,16,
+  Widget _composer() => Padding(padding:EdgeInsets.fromLTRB(16,5,16,
       MediaQuery.viewInsetsOf(context).bottom>0?8:17),
       child:Column(mainAxisSize:MainAxisSize.min,children:[
         if(attachments.isNotEmpty) SingleChildScrollView(
@@ -422,19 +422,22 @@ class _ThreadScreenState extends State<ThreadScreen> {
           const SizedBox(width:5),
           Expanded(child:TextField(controller:draft,
             minLines:1,maxLines:6,keyboardType:TextInputType.multiline,
-            onChanged:(_)=>setState((){}),
             style:const TextStyle(fontSize:15,color:KColors.ink),
             decoration:const InputDecoration(
               hintText:'Message…',hintStyle:TextStyle(color:KColors.muted),
               border:InputBorder.none,isDense:true,
               contentPadding:EdgeInsets.symmetric(vertical:12,horizontal:3)))),
           const SizedBox(width:6),
-          KakaIconButton(
-            icon:thread.sending?LucideIcons.clock:LucideIcons.arrowUp,
-            filled:true,size:42,
-            onTap:thread.sending||(draft.text.trim().isEmpty&&attachments.isEmpty)?null:send),
+          AnimatedBuilder(animation:thread,builder:(context,_) =>
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable:draft,
+              builder:(context,value,_)=>KakaIconButton(
+                icon:thread.sending?LucideIcons.clock:LucideIcons.arrowUp,
+                filled:true,size:42,
+                onTap:thread.sending||(value.text.trim().isEmpty&&attachments.isEmpty)?null:send),
+            )),
         ]),
       ),
       ]),
-    ));
+    );
 }

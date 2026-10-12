@@ -26,27 +26,82 @@ class OrganicAvatar extends StatefulWidget {
   final Color color;
   final bool working;
   final String stateId;
+  /// Enable full motion only when the avatar is large or visibly working.
+  final bool animate;
   const OrganicAvatar({super.key, this.size = 52, this.shapeIndex = 0,
     this.expressionIndex = 0, this.color = KColors.ink, this.working = false,
-    this.stateId = 'idle'});
+    this.stateId = 'idle', this.animate = false});
   @override
   State<OrganicAvatar> createState() => _OrganicAvatarState();
 }
-class _OrganicAvatarState extends State<OrganicAvatar> with SingleTickerProviderStateMixin {
+class _OrganicAvatarState extends State<OrganicAvatar>
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _controller = AnimationController(
-    vsync: this, duration: const Duration(seconds: 9))..repeat();
+    vsync: this, duration: const Duration(seconds: 9));
+  bool _foreground = true;
+  bool _tickerEnabled = true;
+  bool _reduceMotion = false;
+
+  bool get _shouldAnimate =>
+      _foreground && _tickerEnabled && !_reduceMotion &&
+      (widget.animate || widget.working || widget.size >= 110);
+
   @override
-  void dispose() { _controller.dispose(); super.dispose(); }
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _tickerEnabled = TickerMode.of(context);
+    _reduceMotion = MediaQuery.disableAnimationsOf(context);
+    _updateTicker();
+  }
+
+  @override
+  void didUpdateWidget(covariant OrganicAvatar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.working != oldWidget.working ||
+        widget.size != oldWidget.size ||
+        widget.animate != oldWidget.animate) {
+      _updateTicker();
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _foreground = state == AppLifecycleState.resumed;
+    _updateTicker();
+  }
+
+  void _updateTicker() {
+    if (_shouldAnimate) {
+      if (!_controller.isAnimating) _controller.repeat();
+    } else {
+      if (_controller.isAnimating) _controller.stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _controller.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) => RepaintBoundary(
     child: SizedBox(width: widget.size, height: widget.size,
       child: AnimatedBuilder(animation: _controller,
         builder: (context, child) => CustomPaint(
           painter: _AvatarPainter(
-            t: _controller.value * 9, shapeIndex: widget.shapeIndex,
+            t: _shouldAnimate ? _controller.value * 9 : 0,
+            shapeIndex: widget.shapeIndex,
             expressionIndex: widget.expressionIndex, color: widget.color,
             working: widget.working, stateId: widget.stateId,
-            reducedMotion: MediaQuery.disableAnimationsOf(context)),
+            reducedMotion: !_shouldAnimate),
         )),
     ),
   );
@@ -59,6 +114,8 @@ class _AvatarPainter extends CustomPainter {
   final bool working, reducedMotion;
   final String stateId;
   static const count = 64;
+  // One vector outline per shape for the whole process (not 64 spline points per frame).
+  static final Map<int, Path> _outlineCache = <int, Path>{};
   _AvatarPainter({required this.t, required this.shapeIndex,
     required this.expressionIndex, required this.color,
     required this.working, required this.reducedMotion,
@@ -125,24 +182,29 @@ class _AvatarPainter extends CustomPainter {
     canvas.scale(breath,breath);
     final bodyOnly = state == 'thinking' || state == 'alert' ||
       state == 'exclaim' || state == 'sleep';
-    if(!bodyOnly) {
-      final forced=state=='hexagon'?5:state=='egg'?7:null;
-      final points=List<Offset>.generate(count,(i) {
-        final a=2*math.pi*i/count;
-        final r=_radius(a,forced)*scale;
-        return Offset(math.cos(a)*r,math.sin(a)*r);
+    if (!bodyOnly) {
+      final shapeId = state == 'hexagon' ? 5 : (state == 'egg' ? 7 : shapeIndex % 8);
+      final outline = _outlineCache.putIfAbsent(shapeId, () {
+        final points = List<Offset>.generate(count, (i) {
+          final angle = 2 * math.pi * i / count;
+          final radius = _radius(angle, shapeId);
+          return Offset(math.cos(angle) * radius, math.sin(angle) * radius);
+        });
+        final path = Path()..moveTo(points[0].dx, points[0].dy);
+        for (var i = 0; i < count; i++) {
+          final a = points[(i - 1 + count) % count], b = points[i];
+          final c = points[(i + 1) % count], d = points[(i + 2) % count];
+          path.cubicTo(
+            b.dx + (c.dx - a.dx) / 6, b.dy + (c.dy - a.dy) / 6,
+            c.dx - (d.dx - b.dx) / 6, c.dy - (d.dy - b.dy) / 6,
+            c.dx, c.dy);
+        }
+        return path..close();
       });
-      final silhouette=Path()..moveTo(points[0].dx,points[0].dy);
-      for(var i=0;i<count;i++){
-        final a=points[(i-1+count)%count],b=points[i];
-        final c=points[(i+1)%count],d=points[(i+2)%count];
-        silhouette.cubicTo(
-          b.dx+(c.dx-a.dx)/6,b.dy+(c.dy-a.dy)/6,
-          c.dx-(d.dx-b.dx)/6,c.dy-(d.dy-b.dy)/6,
-          c.dx,c.dy);
-      }
-      silhouette.close();
-      canvas.drawPath(silhouette,bodyPaint);
+      canvas.save();
+      canvas.scale(scale);
+      canvas.drawPath(outline, bodyPaint);
+      canvas.restore();
     }
 
     if(state=='thinking'){

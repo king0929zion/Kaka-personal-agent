@@ -23,10 +23,26 @@ class ThreadController extends ChangeNotifier {
   bool sending = false;
   bool fetchingMore = false;
   StreamSubscription<KakaThreadEvent>? _events;
+  Timer? _renderDebounce;
   int _epoch = 0;
   bool _disposed = false;
 
   List<KakaMessage> get messages => snapshot?.messages ?? const [];
+
+  // Coalesce high-frequency progress/token events into one repaint per 80 ms.
+  void _publish({bool streaming = false}) {
+    if (_disposed) return;
+    if (!streaming) {
+      _renderDebounce?.cancel();
+      _renderDebounce = null;
+      notifyListeners();
+      return;
+    }
+    _renderDebounce ??= Timer(const Duration(milliseconds: 80), () {
+      _renderDebounce = null;
+      if (!_disposed) notifyListeners();
+    });
+  }
 
   Future<void> load() async {
     final epoch = ++_epoch;
@@ -63,6 +79,19 @@ class ThreadController extends ChangeNotifier {
     if (old == null) return;
     final seq = e.seq ?? old.cursor;
     if (e.seq != null && seq <= old.cursor) return;
+    final isContentEvent = e.type == 'thread.cleared' ||
+        e.type == 'thread.message.created' ||
+        e.type == 'thread.message.updated' ||
+        e.type == 'thread.progress' ||
+        e.type.startsWith('run.');
+    if (!isContentEvent) {
+      if (seq != old.cursor) {
+        snapshot = KakaThread(threadId: old.threadId, cursor: seq,
+          olderCursor: old.olderCursor, runStatus: old.runStatus,
+          messages: old.messages);
+      }
+      return;
+    }
     var messages = List<KakaMessage>.from(old.messages);
     var runStatus = old.runStatus;
     if (e.type == 'thread.cleared') {
@@ -94,7 +123,8 @@ class ThreadController extends ChangeNotifier {
     }
     snapshot = KakaThread(threadId:old.threadId, cursor:seq,
       olderCursor:old.olderCursor, messages:messages, runStatus:runStatus);
-    notifyListeners();
+    _publish(streaming: e.type == 'thread.progress' ||
+      e.type == 'thread.message.updated');
   }
 
   Future<void> send(String text, {List<PendingAttachment> attachments = const []}) async {
@@ -157,6 +187,7 @@ class ThreadController extends ChangeNotifier {
     _disposed = true;
     ++_epoch;
     _events?.cancel();
+    _renderDebounce?.cancel();
     super.dispose();
   }
 }
