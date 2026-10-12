@@ -17,7 +17,8 @@ cd apps/mobile_flutter
 bash scripts/bootstrap_android.sh
 flutter analyze
 flutter test
-flutter build apk --debug
+flutter build apk --release --split-per-abi
+# Or: flutter build apk --debug (developer-only performance)
 ```
 
 `bootstrap_android.sh` generates the Android embedding for your installed Flutter SDK and adds the INTERNET permission. It is safe to rerun. No credentials or APK signing keys are checked in.
@@ -31,3 +32,9 @@ The client speaks the existing server's oRPC POST JSON envelopes, password login
 `lib/core`: models and API, `lib/app`: application state, `lib/design`: flat UI primitives, `lib/features`: screens and organic avatar.
 
 See `docs/FLUTTER_MIGRATION.md` for release blockers.
+
+## Performance testing APK
+
+The CI workflow now publishes **release-mode, per-ABI APKs** separately from the large debug APK. For normal Android ARM64 devices, install `app-arm64-v8a-release.apk`, not `app-debug.apk`. Profile/release mode removes Flutter debug instrumentation and is the correct build for UI smoothness and memory comparisons.
+
+These are **testing artifacts**, not Play Store releases. Without a configured production signing key the generated Android template uses a developer debug key for signing; keys can differ across CI runners. You may need to uninstall a previous test build before installing a newer one; back up local data first. Production updates require stable release signing and an explicit migration plan.
