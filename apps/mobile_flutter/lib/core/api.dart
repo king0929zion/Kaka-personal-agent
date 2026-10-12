@@ -163,6 +163,70 @@ class KakaApi {
     await _storage.delete(key: _spaceKey);
   }
 
+  /// Better Auth uses a different route from the typed RPC layer.
+  /// A password change may replace the session token; keep it in secure
+  /// storage and invalidate subscriptions so the next request uses it.
+  Future<void> changePassword(String currentPassword,String newPassword) async {
+    if(newPassword.length<8)throw const KakaApiException('Password must be at least 8 characters');
+    final server=baseUrl, session=token;
+    final response=await _client.post(
+      Uri.parse('$server/api/auth/change-password'),
+      headers:_headers,
+      body:jsonEncode({
+        'currentPassword':currentPassword,
+        'newPassword':newPassword,
+        'revokeOtherSessions':true,
+      }),
+    ).timeout(const Duration(seconds:20));
+    if(server!=baseUrl||session!=token){
+      throw const KakaApiException('Session changed during password update');
+    }
+    final body=_decode(response.body);
+    if(response.statusCode>=400){
+      final msg=body is Map
+        ?body['message']??body['error']??'Password update failed'
+        :'Password update failed';
+      throw KakaApiException(msg.toString(),response.statusCode);
+    }
+    var next='';
+    if(body is Map){
+      next=body['token']?.toString()??'';
+      if(next.isEmpty && body['session'] is Map){
+        next=body['session']['token']?.toString()??'';
+      }
+    }
+    if(next.isEmpty){
+      final cookie=RegExp(r'(?:^|,\s*)(?:__Secure-)?better-auth\.session_token=([^;,]*)')
+        .firstMatch(response.headers['set-cookie']??'');
+      if(cookie!=null)next=Uri.decodeComponent(cookie.group(1)!);
+    }
+    if(next.isNotEmpty && next!=token){
+      _invalidateRealtime();
+      token=next;
+      await _storage.write(key:_tokenKey,value:next);
+    }
+  }
+
+  Future<void> deleteAccount({required String password}) async {
+    final server=baseUrl,session=token;
+    final response=await _client.post(
+      Uri.parse('$server/api/auth/delete-user'),
+      headers:_headers,
+      body:jsonEncode({'password':password}),
+    ).timeout(const Duration(seconds:20));
+    if(server!=baseUrl || session!=token) {
+      throw const KakaApiException('Session changed during account deletion');
+    }
+    final body=_decode(response.body);
+    if(response.statusCode>=400){
+      final msg=body is Map
+        ?body['message']??body['error']??'Account deletion failed'
+        :'Account deletion failed';
+      throw KakaApiException(msg.toString(),response.statusCode);
+    }
+    await signOut();
+  }
+
   Future<void> signOut() async {
     _invalidateRealtime();
     token = '';

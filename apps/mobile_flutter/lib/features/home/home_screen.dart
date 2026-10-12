@@ -17,6 +17,7 @@ import '../search/search_screen.dart';
 import '../activity/activity_screen.dart';
 import '../spaces/spaces_screen.dart';
 import '../archives/archived_screen.dart';
+import '../account/account_screen.dart';
 import '../artifacts/artifact_library_screen.dart';
 import '../memory/memory_screen.dart';
 import '../agents/agent_settings_screen.dart';
@@ -384,8 +385,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _settings()=>ListView(padding:const EdgeInsets.fromLTRB(21,0,21,125),children:[
     const SizedBox(height:7),
-    const KakaSection(title:'ACCOUNT',child:Column(children:[
-      KakaRow(title:'Personal workspace',icon:LucideIcons.user),
+    KakaSection(title:'ACCOUNT',child:Column(children:[
+      KakaRow(title:'Personal account',icon:LucideIcons.user,
+        onTap:()=>Navigator.push(context,MaterialPageRoute<void>(
+          builder:(_)=>AccountScreen(app:widget.app)))),
     ])),
     const SizedBox(height:20),
     KakaSection(title:'CONNECTION',child:Column(children:[
