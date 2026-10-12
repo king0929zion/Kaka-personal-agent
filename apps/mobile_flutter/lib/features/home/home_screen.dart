@@ -425,7 +425,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     borderRadius:BorderRadius.circular(29))),
               ),
             ),
-            ),
             Row(children:[
               _navButton(0,LucideIcons.messageCircle,tab),
               _navButton(1,LucideIcons.bot,tab),
