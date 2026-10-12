@@ -195,41 +195,43 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor:KColors.bg,
         body:SafeArea(child:Stack(children:[
           Column(children:[
-            Padding(padding:const EdgeInsets.fromLTRB(22,24,22,15),child:Row(
+            KakaContentWidth(child:Padding(padding:const EdgeInsets.fromLTRB(22,18,22,14),child:Row(
               mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[
                 Text(['Chats','Agents','Settings'][tab],
                   style:Theme.of(context).textTheme.headlineLarge),
                 Row(children:[
-                  if(tab!=2) KakaIconButton(icon:LucideIcons.search,onTap:()=>
+                  if(tab!=2) KakaIconButton(icon:LucideIcons.search,tooltip:'Search',onTap:()=>
                     Navigator.push(context,MaterialPageRoute<void>(
                       builder:(_)=>SearchScreen(app:widget.app)))),
                   const SizedBox(width:8),
-                  if(tab!=2) KakaIconButton(icon:LucideIcons.refreshCw,onTap:widget.app.refresh),
+                  if(tab!=2) KakaIconButton(icon:LucideIcons.refreshCw,tooltip:'Refresh',onTap:widget.app.refresh),
                 ]),
-              ])),
-            if(tab!=2) Padding(padding:const EdgeInsets.fromLTRB(22,0,22,14),
+              ]))),
+            if(tab!=2) KakaContentWidth(child:Padding(padding:const EdgeInsets.fromLTRB(22,0,22,14),
               child:Row(children:[
-                KakaPress(onTap:selectSpace,child:Container(
-                  padding:const EdgeInsets.symmetric(horizontal:13,vertical:9),
+                Flexible(child:KakaPress(onTap:selectSpace,child:Container(
+                  padding:const EdgeInsets.symmetric(horizontal:14,vertical:10),
+                  constraints:const BoxConstraints(maxWidth:300),
                   decoration:BoxDecoration(color:KColors.soft,
                     borderRadius:BorderRadius.circular(24)),
                   child:Row(mainAxisSize:MainAxisSize.min,children:[
-                  Text(widget.app.spaces.where((s)=>s.id==widget.app.api.spaceId)
+                  Flexible(child:Text(widget.app.spaces.where((s)=>s.id==widget.app.api.spaceId)
                     .map((s)=>s.name).firstOrNull ?? 'Personal space',
-                    style:const TextStyle(fontSize:14,fontWeight:FontWeight.w600,color:KColors.ink)),
+                    maxLines:1,overflow:TextOverflow.ellipsis,
+                    style:const TextStyle(fontSize:14,fontWeight:FontWeight.w600,color:KColors.ink))),
                   const SizedBox(width:5),
                   const Icon(LucideIcons.chevronDown,size:16,color:KColors.muted),
-                ]))),
+                ])))),
                 const Spacer(),
                 if(widget.app.busy) const SizedBox(width:14,height:14,
                   child:KakaLoadingDots()),
-              ])),
-            if(searching&&tab!=2) Padding(padding:const EdgeInsets.fromLTRB(22,0,22,15),
+              ]))),
+            if(searching&&tab!=2) KakaContentWidth(child:Padding(padding:const EdgeInsets.fromLTRB(22,0,22,15),
               child:TextField(controller:query,onChanged:(_)=>setState((){}),
                 decoration:InputDecoration(prefixIcon:const Icon(LucideIcons.search,size:18),
                   hintText:'Search agents',filled:true,fillColor:KColors.soft,
                   border:OutlineInputBorder(borderRadius:BorderRadius.circular(23),
-                    borderSide:BorderSide.none)))),
+                    borderSide:BorderSide.none))))),
             // Avoid mounting TWO potentially long chat/agent lists during
             // tab crossfades. The floating navigation pill carries the motion.
             Expanded(child:KeyedSubtree(
@@ -261,12 +263,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final prefix = (hasError ? 1 : 0) + (empty ? 1 : 0);
     final groupHeader = groups.isNotEmpty ? 1 : 0;
     final count = prefix + bots.length + groupHeader + groups.length;
-    return ListView.builder(
+    return KakaContentWidth(child:ListView.builder(
       key:PageStorageKey('kaka-home-list-$tab'),
       controller:tab==1?_agentsScroll:_chatsScroll,
-      cacheExtent: 120,
+      scrollCacheExtent: 120,
       addAutomaticKeepAlives: false,
-      padding: const EdgeInsets.fromLTRB(18, 0, 18, 125),
+      padding: const EdgeInsets.fromLTRB(KLayout.pageGutter, 0, KLayout.pageGutter, 125),
       itemCount: count,
       itemBuilder: (context, index) {
         var cursor = index;
@@ -299,7 +301,7 @@ class _HomeScreenState extends State<HomeScreen> {
         if (groups.isNotEmpty) return _groupTile(groups[cursor - 1]);
         return const SizedBox.shrink();
       },
-    );
+    ));
   }
 
   Future<void> _duplicate(String kind,String id) async {
@@ -315,7 +317,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _botTile(KakaBot bot, int tab) => Padding(
     key: ValueKey('agent-${bot.id}'),
-    padding: const EdgeInsets.only(bottom: 11),
+    padding: const EdgeInsets.only(bottom: KLayout.listGap),
     child: KakaPress(
       onTap: () => open(bot),
       onLongPress: () => kakaSheet<void>(context, Column(
@@ -342,7 +344,7 @@ class _HomeScreenState extends State<HomeScreen> {
           }),
         ])),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical:17,horizontal:17),
+        padding: const EdgeInsets.symmetric(vertical:15,horizontal:17),
         decoration: BoxDecoration(color: KColors.surface,
           borderRadius: BorderRadius.circular(29)),
         child: Row(children: [
@@ -375,7 +377,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _groupTile(KakaGroup group) => Padding(
     key: ValueKey('group-${group.id}'),
-    padding: const EdgeInsets.only(bottom: 9),
+    padding: const EdgeInsets.only(bottom: KLayout.listGap),
     child: KakaPress(
       onTap: () => openGroup(group),
       onLongPress:()=>kakaSheet<void>(context,Column(
@@ -390,7 +392,7 @@ class _HomeScreenState extends State<HomeScreen> {
           }),
         ])),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical:19,horizontal:19),
+        padding: const EdgeInsets.symmetric(vertical:15,horizontal:18),
         decoration: BoxDecoration(color: KColors.surface,
           borderRadius: BorderRadius.circular(29)),
         child: Row(children: [
@@ -402,8 +404,8 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     ));
 
-  Widget _bottomNav(int tab) => Padding(
-    padding:const EdgeInsets.symmetric(horizontal:21),
+  Widget _bottomNav(int tab) => KakaContentWidth(child:Padding(
+    padding:const EdgeInsets.symmetric(horizontal:KLayout.pageGutter),
     child:Row(children:[
       KakaGlassSurface(radius:39,padding:const EdgeInsets.all(7),
         sigma:0,child:SizedBox(width:162,height:52,
@@ -442,18 +444,23 @@ class _HomeScreenState extends State<HomeScreen> {
           child:Icon(tab==2?LucideIcons.settings2:LucideIcons.plus,
             size:26,color:Colors.white.withValues(alpha:tab==2 ? .4 : 1)))),
     ]),
-  );
+  ));
   Widget _navButton(int index,IconData icon,int current) =>
-    KakaPress(onTap:()=>widget.app.switchTab(index),haptic:true,
-      child:SizedBox(width:54,height:52,
-        child:AnimatedOpacity(
-          opacity:index==current?1:.8,
-          duration:KakaMotion.quick,
-          child:Icon(icon,size:21,
-            color:index==current?Colors.white:KColors.ink)),
-      ));
+    Semantics(
+      label:const ['Chats','Agents','Settings'][index],
+      button:true,
+      selected:index==current,
+      child:KakaPress(onTap:()=>widget.app.switchTab(index),haptic:true,
+        child:SizedBox(width:54,height:52,
+          child:AnimatedOpacity(
+            opacity:index==current?1:.72,
+            duration:KakaMotion.quick,
+            child:Icon(icon,size:21,
+              color:index==current?Colors.white:KColors.ink)),
+        )),
+    );
 
-  Widget _settings()=>ListView(padding:const EdgeInsets.fromLTRB(21,0,21,125),children:[
+  Widget _settings()=>KakaContentWidth(child:ListView(padding:const EdgeInsets.fromLTRB(KLayout.pageGutter,0,KLayout.pageGutter,125),children:[
     const SizedBox(height:7),
     KakaSection(title:'ACCOUNT',child:Column(children:[
       KakaRow(title:'Personal account',icon:LucideIcons.user,
@@ -512,7 +519,7 @@ class _HomeScreenState extends State<HomeScreen> {
       KakaRow(title:'Sign out',icon:LucideIcons.logOut,
         onTap:()=>widget.app.logout()),
     ])),
-  ]);
+  ]));
 
   Future<void> _showModels() async {
     await Navigator.of(context).push(MaterialPageRoute<void>(
