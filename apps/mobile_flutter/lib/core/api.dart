@@ -20,10 +20,22 @@ class KakaApi {
   static const _tokenKey = 'kaka.flutter.token';
   static const _spaceKey = 'kaka.flutter.space';
   final http.Client _client;
+  final http.Client Function() _realtimeClientFactory;
+  final Set<http.Client> _liveClients = <http.Client>{};
+
+  void _invalidateRealtime() {
+    for (final client in _liveClients.toList()) {
+      client.close();
+    }
+    _liveClients.clear();
+  }
+
   String baseUrl = '';
   String token = '';
   String spaceId = '';
-  KakaApi({http.Client? client}) : _client = client ?? http.Client();
+  KakaApi({http.Client? client, http.Client Function()? realtimeClientFactory})
+      : _client = client ?? http.Client(),
+        _realtimeClientFactory = realtimeClientFactory ?? http.Client.new;
 
   Future<void> restore() async {
     baseUrl = await _storage.read(key: _urlKey) ?? '';
@@ -57,6 +69,7 @@ class KakaApi {
     final value = normalizeEndpoint(next);
     if (value == baseUrl) return;
     await probe(value);
+    _invalidateRealtime();
     baseUrl = value;
     token = '';
     spaceId = '';
@@ -78,9 +91,18 @@ class KakaApi {
   Future<dynamic> rpcWithTimeout(String path, Map<String, dynamic> input,
       Duration timeout) async {
     if (baseUrl.isEmpty) throw const KakaApiException('Connect a server first');
+    // Session and Space are strict privacy boundaries, including for responses
+    // that finish after the user has switched their account or workspace.
+    final requestServer = baseUrl;
+    final requestToken = token;
+    final requestSpace = spaceId;
     final response = await _client.post(Uri.parse('$baseUrl/rpc/$path'),
       headers: _headers, body: jsonEncode({'json': input}))
       .timeout(timeout);
+    if (requestServer != baseUrl || requestToken != token ||
+        requestSpace != spaceId) {
+      throw const KakaApiException('Request discarded after session or Space change');
+    }
     final body = _decode(response.body);
     if (response.statusCode >= 400) {
       final err = body is Map ? body['json'] ?? body['error'] : null;
@@ -134,6 +156,7 @@ class KakaApi {
       next = match == null ? '' : Uri.decodeComponent(match.group(1)!);
     }
     if (next.isEmpty) throw const KakaApiException('Server did not return a session token');
+    _invalidateRealtime();
     token = next;
     spaceId = '';
     await _storage.write(key: _tokenKey, value: next);
@@ -141,6 +164,7 @@ class KakaApi {
   }
 
   Future<void> signOut() async {
+    _invalidateRealtime();
     token = '';
     spaceId = '';
     await _storage.delete(key: _tokenKey);
@@ -148,6 +172,7 @@ class KakaApi {
   }
 
   Future<void> selectSpace(String id) async {
+    if (spaceId != id) _invalidateRealtime();
     spaceId = id;
     await _storage.write(key: _spaceKey, value: id);
   }
@@ -162,7 +187,8 @@ class KakaApi {
   Future<List<KakaBot>> bots() async {
     final data = await rpc('spaces/list');
     final obj = data is Map ? data : const {};
-    final list = obj['bots'] is List ? obj['bots'] as List : const [];
+    final current = obj['current'] is Map ? obj['current'] as Map : const {};
+    final list = current['bots'] is List ? current['bots'] as List : const [];
     return list.whereType<Map>().map((e) => KakaBot.fromJson(Map<String, dynamic>.from(e))).toList();
   }
 
@@ -225,7 +251,8 @@ class KakaApi {
     final headers = Map<String, String>.from(_headers);
     final target = group ? <String,dynamic>{'groupId':targetId}
       : <String,dynamic>{'botId':targetId};
-    final streamClient = http.Client();
+    final streamClient = _realtimeClientFactory();
+    _liveClients.add(streamClient);
     int cursor = fromCursor;
     var failures = 0;
     try {
@@ -280,8 +307,12 @@ class KakaApi {
         await Future<void>.delayed(Duration(seconds: failures * 2));
       }
     } finally {
+      _liveClients.remove(streamClient);
       streamClient.close();
     }
   }
-  void dispose() => _client.close();
+  void dispose() {
+    _invalidateRealtime();
+    _client.close();
+  }
 }
