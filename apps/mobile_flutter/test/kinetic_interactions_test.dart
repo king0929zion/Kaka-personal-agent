@@ -116,7 +116,10 @@ void main() {
     await tester.pump(const Duration(milliseconds:200));
     expect(tester.takeException(),isNull);
     await tester.tapAt(const Offset(10,10));
-    await tester.pump(const Duration(milliseconds:450));
-    expect(KakaSheetDepth.progress.value,closeTo(0,.02));
+    await tester.pumpAndSettle(const Duration(milliseconds:70));
+    expect(find.text('Draggable sheet'),findsNothing,
+      reason:'A tap outside the sheet must dismiss the modal route');
+    expect(KakaSheetDepth.progress.value,closeTo(0,.02),
+      reason:'The underlying page must return to full size');
   });
 }
