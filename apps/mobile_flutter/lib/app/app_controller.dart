@@ -74,31 +74,51 @@ class AppController extends ChangeNotifier {
     error = null;
     notifyListeners();
     try {
-      // The canonical spaces/list response is the shared navigation envelope.
-      final navigation = await api.rpc('spaces/list');
-      final me = await api.rpc('me');
+      // The RPC contract is {current: {id,name,bots,groups,...},
+      // spaces: Space[]}. Never look for bots at the root or on current's
+      // sibling `spaces`: that silently produces an empty home screen.
+      final results = await Future.wait<dynamic>([
+        api.rpc('spaces/list'),
+        api.rpc('me'),
+      ]);
       if (epoch != _epoch) return;
-      final nav = Map<String, dynamic>.from(navigation as Map);
-      final profile = Map<String, dynamic>.from(me as Map);
+      var navigation = Map<String, dynamic>.from(results[0] as Map);
+      final profile = Map<String, dynamic>.from(results[1] as Map);
       accountName = '${profile['name'] ?? ''}';
-      spaces = (nav['spaces'] is List ? nav['spaces'] as List : const [])
-        .whereType<Map>().map((m) => KakaSpace.fromJson(Map<String, dynamic>.from(m))).toList();
-      var spaceId = api.spaceId;
-      final available = spaces.any((s) => s.id == spaceId);
-      if (!available) {
-        spaceId = '${profile['spaceId'] ?? ''}';
-        if (!spaces.any((s) => s.id == spaceId) && spaces.isNotEmpty) spaceId = spaces.first.id;
-        if (spaceId.isNotEmpty) await api.selectSpace(spaceId);
+      spaces = (navigation['spaces'] is List ? navigation['spaces'] as List : const [])
+        .whereType<Map>()
+        .map((m) => KakaSpace.fromJson(Map<String, dynamic>.from(m))).toList();
+      final serverCurrent = navigation['current'];
+      if (serverCurrent is! Map) {
+        throw const KakaApiException('Server sent invalid Space navigation');
       }
-      // Use the current Space's authoritative lists when available.
-      final selected = spaces.where((s) => s.id == spaceId).firstOrNull;
-      final raw = nav['spaces'] is List ? (nav['spaces'] as List).whereType<Map>()
-        .where((s) => '${s['id']}' == selected?.id).firstOrNull : null;
-      final entries = raw ?? nav;
-      bots = (entries['bots'] is List ? entries['bots'] as List : const [])
-        .whereType<Map>().map((m) => KakaBot.fromJson(Map<String, dynamic>.from(m))).toList();
-      groups = (entries['groups'] is List ? entries['groups'] as List : const [])
-        .whereType<Map>().map((m) => KakaGroup.fromJson(Map<String, dynamic>.from(m))).toList();
+      var current = Map<String, dynamic>.from(serverCurrent);
+      final existingId = api.spaceId;
+      final currentId = current['id']?.toString() ?? '';
+      if (existingId.isNotEmpty && existingId != currentId) {
+        if (spaces.any((space) => space.id == existingId)) {
+          // Some older servers ignore the Space header on navigation requests;
+          // use the matching Space entry instead of showing another Space.
+          final matching = (navigation['spaces'] as List).whereType<Map>()
+            .where((entry) => entry['id']?.toString() == existingId).firstOrNull;
+          if (matching != null) current = Map<String, dynamic>.from(matching);
+        } else {
+          await api.selectSpace(currentId);
+        }
+      } else if (existingId.isEmpty && currentId.isNotEmpty) {
+        await api.selectSpace(currentId);
+      }
+      if (epoch != _epoch) return;
+      final selectedId = api.spaceId;
+      if (selectedId.isNotEmpty && current['id']?.toString() != selectedId) {
+        throw const KakaApiException('Space navigation could not be verified');
+      }
+      bots = (current['bots'] is List ? current['bots'] as List : const [])
+        .whereType<Map>()
+        .map((m) => KakaBot.fromJson(Map<String, dynamic>.from(m))).toList();
+      groups = (current['groups'] is List ? current['groups'] as List : const [])
+        .whereType<Map>()
+        .map((m) => KakaGroup.fromJson(Map<String, dynamic>.from(m))).toList();
       bots.sort((a,b) => a.pinned != b.pinned
         ? (a.pinned ? -1 : 1) : b.updatedAt.compareTo(a.updatedAt));
     } on KakaApiException catch (e) {
