@@ -148,6 +148,27 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<KakaGroup?> createGroup(String name, List<String> botIds) async {
+    busy = true;
+    error = null;
+    notifyListeners();
+    try {
+      final data = await api.rpc('groups/create', {
+        'name': name.trim(), 'botIds': botIds,
+      });
+      final group = KakaGroup.fromJson(Map<String, dynamic>.from(data as Map));
+      await refresh();
+      return group;
+    } catch(e) {
+      error = e.toString();
+      notifyListeners();
+      return null;
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> logout() async {
     ++_epoch;
     await api.signOut();

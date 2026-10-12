@@ -42,6 +42,92 @@ class _HomeScreenState extends State<HomeScreen> {
       .then((_){widget.app.refresh();});
   }
 
+  Future<void> _newMenu() async {
+    await kakaSheet<void>(context,Column(
+      mainAxisSize:MainAxisSize.min,
+      crossAxisAlignment:CrossAxisAlignment.start,
+      children:[
+        Text('New conversation',style:Theme.of(context).textTheme.headlineMedium),
+        const SizedBox(height:15),
+        KakaRow(title:'New agent',subtitle:'Create a personal AI assistant',
+          icon:LucideIcons.bot,onTap:(){
+            Navigator.of(context).pop();
+            createBot();
+          }),
+        KakaRow(title:'New group',subtitle:'Bring agents together',
+          icon:LucideIcons.users,onTap:(){
+            Navigator.of(context).pop();
+            _createGroup();
+          }),
+      ]));
+  }
+
+  Future<void> _createGroup() async {
+    final name=TextEditingController();
+    final selected=<String>{};
+    final agents=widget.app.bots.where((bot)=>bot.status!='archived').toList();
+    if(agents.length < 2) {
+      kakaNotice(context,'Create at least two agents before making a group');
+      name.dispose();
+      return;
+    }
+    try {
+      final group=await kakaSheet<KakaGroup>(context,StatefulBuilder(
+        builder:(ctx,rebuild)=>SingleChildScrollView(
+          child:Column(
+            mainAxisSize:MainAxisSize.min,
+            crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+              Text('New group',style:Theme.of(ctx).textTheme.headlineMedium),
+              const SizedBox(height:18),
+              KakaField(controller:name,label:'Group name',
+                hint:'Team discussion'),
+              const SizedBox(height:20),
+              const Text('SELECT 2–6 AGENTS',
+                style:TextStyle(fontSize:12,color:KColors.muted)),
+              const SizedBox(height:10),
+              ...agents.map((bot)=>GestureDetector(
+                onTap:()=>rebuild((){
+                  if(selected.contains(bot.id)){selected.remove(bot.id);}
+                  else if(selected.length<6){selected.add(bot.id);}
+                }),
+                child:Container(
+                  margin:const EdgeInsets.only(bottom:7),
+                  padding:const EdgeInsets.all(13),
+                  decoration:BoxDecoration(
+                    color:selected.contains(bot.id)?KColors.soft:KColors.surface,
+                    borderRadius:BorderRadius.circular(19)),
+                  child:Row(children:[
+                    AgentAvatar(botId:bot.id,size:33,fallbackColor:_color(bot.color)),
+                    const SizedBox(width:12),
+                    Expanded(child:Text(bot.name,
+                      style:const TextStyle(fontSize:14))),
+                    Icon(selected.contains(bot.id)
+                        ? LucideIcons.circleCheck : LucideIcons.circle,
+                      size:21,color:KColors.ink),
+                  ]),
+                ))),
+              const SizedBox(height:18),
+              KakaButton(title:'Create group',
+                busy:widget.app.busy,
+                onPressed:() async {
+                  if(name.text.trim().isEmpty || selected.length<2){
+                    kakaNotice(ctx,'Enter a group name and choose 2–6 agents');
+                    return;
+                  }
+                  final created=await widget.app.createGroup(
+                    name.text,selected.toList());
+                  if(!ctx.mounted)return;
+                  if(created!=null){Navigator.of(ctx).pop(created);}
+                  else{kakaNotice(ctx,widget.app.error??'Could not create group');}
+                }),
+            ]),
+        )));
+      if(group!=null&&mounted)openGroup(group);
+    }finally {
+      WidgetsBinding.instance.addPostFrameCallback((_)=>name.dispose());
+    }
+  }
+
   Future<void> createBot() async {
     final name=TextEditingController(), title=TextEditingController(), detail=TextEditingController();
     final result = await kakaSheet<KakaBot>(context, StatefulBuilder(builder:(ctx, rebuild) =>
@@ -276,7 +362,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ])))),
       const SizedBox(width:14),
       KakaIconButton(icon:LucideIcons.plus,size:64,filled:true,
-        onTap: tab==2?null:createBot),
+        onTap: tab==2?null:_newMenu),
     ]),
   );
   Widget _navButton(int index,IconData icon,int current) =>

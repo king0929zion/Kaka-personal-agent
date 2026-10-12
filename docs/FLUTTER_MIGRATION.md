@@ -27,3 +27,29 @@ Goal: fully custom minimalist Android UI, floating capsule nav, Lucide icons, pi
 Do not retire `apps/mobile` or ship Flutter as a production replacement until all release blockers above are cleared. Server owns authorization, validation, and agent behavior. Client should preserve unknown MessageBlock data rather than drop it.
 
 The existing client uses POST /rpc/health (JSON envelope), POST /api/auth/sign-in/email (Better Auth), oRPC /rpc/<name>, SSE POST /rpc/threads/subscribe with Bearer token and x-rakazo-space-id. Check `apps/mobile/lib/api.ts` before changing transport behavior.
+
+## Flutter performance pass (2026-10-12)
+
+Implemented:
+- Agent list uses a builder and short cache extent rather than eagerly mounting the whole inbox.
+- Small organic avatars are static unless explicitly animated or working; large previews pause in the background and with reduced motion.
+- Shared shape path cache prevents 64-point silhouette interpolation being recomputed for each frame.
+- Realtime progress/message updates coalesce UI notifications into ~80 ms paint windows.
+- The input field and send action no longer rebuild the entire chat on every keystroke.
+- Live SSE has a dedicated cancellable HTTP client with replay cursor and frame-size guard.
+- In-memory per-agent avatar cache is capped at 96 entries.
+- Decoded image cache caps at 32 MiB and image previews request a display-sized decode.
+- Queued uploads are capped at 16 MiB overall (the server's 10 MiB-per-file / 4-file limits also apply).
+
+**Performance claims must be validated on a real Android device.**
+Suggested release measurements (profile/release mode, never compare to debug builds):
+- Record Flutter DevTools CPU and allocation profiles with 10, 100 and 500 agents.
+- Scroll a conversation of 300 messages and check sustained frame times (16.7 ms for 60 Hz, 8.3 ms for 120 Hz).
+- Measure Android PSS after startup, after viewing large attachments, and 10 minutes after leaving a chat.
+- Confirm no active SSE sockets or avatar ticker frames after leaving a chat or backgrounding the app.
+- Inspect memory usage after editing and saving an organic avatar, then switching agents repeatedly.
+
+Remaining known memory concerns:
+- Uploads still use backend-mandated in-memory Base64; use stream-upload on the server before raising per-message attachment limits.
+- The chat reducer retains loaded history in memory; adopt a bounded cursor-backed cache and test scroll-anchor recovery before enforcing a hard limit.
+- Rich markdown parsing during rapidly streaming messages needs a dedicated benchmark and/or incremental renderer.
