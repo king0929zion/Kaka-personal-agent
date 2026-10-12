@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/services.dart';
@@ -330,9 +331,25 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                   return Column(key:const ValueKey<String>('kaka-thread-header'),children:[
                     if(thread.snapshot?.olderCursor!=null)
                       Padding(padding:const EdgeInsets.only(bottom:20),
-                        child:GestureDetector(onTap:_olderPage,
-                          child:Text(thread.fetchingMore?'Loading…':'Load earlier messages',
-                            style:const TextStyle(color:KColors.muted,fontSize:13)))),
+                        child:Center(child:Semantics(
+                          button:true,
+                          label:'Load earlier messages',
+                          child:KakaPress(
+                            onTap:thread.fetchingMore?null:_olderPage,
+                            child:Container(
+                              constraints:const BoxConstraints(minHeight:48),
+                              padding:const EdgeInsets.symmetric(horizontal:20,vertical:12),
+                              decoration:BoxDecoration(
+                                color:KColors.soft,
+                                borderRadius:BorderRadius.circular(24)),
+                              child:Text(thread.fetchingMore?'Loading…':'Load earlier messages',
+                                textAlign:TextAlign.center,
+                                style:const TextStyle(
+                                  color:KColors.ink,fontSize:13,
+                                  fontWeight:FontWeight.w500)),
+                            ),
+                          ),
+                        ))),
                     if(thread.messages.isEmpty) Padding(padding:const EdgeInsets.only(top:90),
                       child:Column(children:[
                         AgentAvatar(botId:widget.bot.id,size:105,fallbackColor:_botColor()),
@@ -485,6 +502,10 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           Flexible(child:GestureDetector(
             onLongPress:()=>_messageMenu(message),
             child:Container(
+              constraints:user
+                ?BoxConstraints(maxWidth:math.min(
+                    MediaQuery.sizeOf(context).width*.82,520))
+                :null,
               padding:user?const EdgeInsets.symmetric(horizontal:17,vertical:13):EdgeInsets.zero,
               decoration:user?BoxDecoration(color:KColors.soft,
                 borderRadius:BorderRadius.circular(25)):null,
