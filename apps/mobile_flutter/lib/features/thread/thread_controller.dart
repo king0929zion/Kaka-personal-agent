@@ -80,17 +80,23 @@ class ThreadController extends ChangeNotifier {
       final next = await api.thread(botId, group: group);
       if (_disposed || epoch != _epoch) return;
       final old = snapshot;
-      // A cursor identifies the server-side revision. Retain the existing
-      // message objects for a no-op refresh so cached Markdown remains valid.
+      // Cursor identifies the server-side message revision. Reopening the
+      // app with the same revision must not discard pages loaded earlier or
+      // reconstruct existing Markdown and image widget trees.
       final unchanged = old != null &&
           old.threadId == next.threadId &&
           old.cursor == next.cursor &&
-          old.olderCursor == next.olderCursor &&
-          old.runStatus == next.runStatus &&
-          old.messages.length == next.messages.length;
+          old.runStatus == next.runStatus;
       if (!unchanged) {
-        snapshot = next;
-        notifyListeners();
+        // A stale HTTP snapshot must never replace newer SSE events.
+        if (old != null &&
+            old.threadId == next.threadId &&
+            next.cursor < old.cursor) {
+          // Retain live messages and reconnect from the newest cursor.
+        } else {
+          snapshot = _preserveOlderHistory(next, old);
+          notifyListeners();
+        }
       }
       _listen(snapshot!.cursor, epoch);
       unawaited(api.rpc('threads/markRead', {...target})
@@ -103,6 +109,31 @@ class ThreadController extends ChangeNotifier {
         notifyListeners();
       }
     }
+  }
+
+
+  /// HTTP refreshes generally return only the latest page. If that page
+  /// overlaps the already displayed timeline, retain the older prefix that
+  /// the user explicitly fetched. A new/cleared thread (or a disjoint page)
+  /// intentionally does not resurrect old messages.
+  KakaThread _preserveOlderHistory(KakaThread next, KakaThread? old) {
+    if (old == null || old.threadId != next.threadId ||
+        old.messages.isEmpty || next.messages.isEmpty) return next;
+    final newerIds = {for (final m in next.messages) m.id};
+    final overlapIndex = old.messages.indexWhere(
+      (message) => newerIds.contains(message.id),
+    );
+    if (overlapIndex <= 0) return next;
+    final prefix = old.messages.take(overlapIndex)
+        .where((m) => !newerIds.contains(m.id)).toList();
+    if (prefix.isEmpty) return next;
+    return KakaThread(
+      threadId: next.threadId,
+      cursor: next.cursor,
+      olderCursor: old.olderCursor,
+      runStatus: next.runStatus,
+      messages: [...prefix, ...next.messages],
+    );
   }
 
   void pauseRealtime() {
