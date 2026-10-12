@@ -2,53 +2,80 @@ import 'dart:ui';
 import 'dart:math' as math;
 import '../core/performance_prefs.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
 import 'motion.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'theme.dart';
 
-/// A velocity-aware press spring shared by all custom controls.
+/// Responsive press feedback without underdamped spring overshoot.
+/// An AnimationController is idle outside actual pointer interactions.
 class KakaPress extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
   final bool haptic;
-  const KakaPress({super.key,required this.child,this.onTap,
-    this.onLongPress,this.haptic=false});
+  const KakaPress({
+    super.key,
+    required this.child,
+    this.onTap,
+    this.onLongPress,
+    this.haptic = false,
+  });
+
   @override
-  State<KakaPress> createState()=>_KakaPressState();
+  State<KakaPress> createState() => _KakaPressState();
 }
+
 class _KakaPressState extends State<KakaPress>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _scale=AnimationController.unbounded(
-    vsync:this,value:1);
+  late final AnimationController _scale = AnimationController(
+    vsync: this,
+    lowerBound: .985,
+    upperBound: 1,
+    value: 1,
+  );
+
   void _press(bool down) {
-    if(widget.onTap==null && widget.onLongPress==null)return;
-    if(kakaReduceMotion(context)) {
-      _scale.value=1;
+    if (widget.onTap == null && widget.onLongPress == null) return;
+    if (kakaReduceMotion(context)) {
+      _scale.value = 1;
       return;
     }
-    _scale.animateWith(SpringSimulation(
-      KakaMotion.pressSpring,_scale.value,down ? .963 : 1,0));
+    _scale.animateTo(
+      down ? .985 : 1,
+      duration: down
+          ? const Duration(milliseconds: 95)
+          : const Duration(milliseconds: 160),
+      curve: KakaMotion.arrive,
+    );
   }
+
   @override
-  void dispose(){_scale.dispose();super.dispose();}
+  void dispose() {
+    _scale.dispose();
+    super.dispose();
+  }
+
   @override
-  Widget build(BuildContext context)=>GestureDetector(
-    behavior:HitTestBehavior.opaque,
-    onTap:widget.onTap==null?null:(){
-      if(widget.haptic)HapticFeedback.selectionClick();
-      widget.onTap!();
-    },
-    onLongPress:widget.onLongPress,
-    onTapDown:(_)=>_press(true),
-    onTapUp:(_)=>_press(false),
-    onTapCancel:()=>_press(false),
-    child:AnimatedBuilder(animation:_scale,child:widget.child,
-      builder:(context,child)=>Transform.scale(
-        scale:_scale.value,child:child)),
-  );
+  Widget build(BuildContext context) => GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap == null
+            ? null
+            : () {
+                if (widget.haptic) HapticFeedback.selectionClick();
+                widget.onTap!();
+              },
+        onLongPress: widget.onLongPress,
+        onTapDown: (_) => _press(true),
+        onTapUp: (_) => _press(false),
+        onTapCancel: () => _press(false),
+        child: AnimatedBuilder(
+          animation: _scale,
+          child: widget.child,
+          builder: (context, child) =>
+              Transform.scale(scale: _scale.value, child: child),
+        ),
+      );
 }
 
 class KakaIconButton extends StatelessWidget {
@@ -362,61 +389,76 @@ class KakaRow extends StatelessWidget {
   );
 }
 
-/// Custom, spring-like bottom sheet with blur and no Material surface border.
+/// Solid, rounded sheet: a nearly opaque dialog does not need an
+/// additional full-area backdrop blur on every transition frame.
 Future<T?> kakaSheet<T>(BuildContext context, Widget content, {double? height}) =>
-  showGeneralDialog<T>(
-    context:context,
-    barrierDismissible:true,
-    barrierLabel:'Dismiss',
-    barrierColor:const Color(0x62000000),
-    transitionDuration:kakaReduceMotion(context)
-      ?const Duration(milliseconds:150):KakaMotion.sheet,
-    pageBuilder:(ctx,a,b)=>Align(alignment:Alignment.bottomCenter,
-      child:Material(type:MaterialType.transparency,
-        child:SafeArea(top:false,child:ClipRRect(
-          borderRadius:const BorderRadius.vertical(
-            top:Radius.circular(KRadius.sheet)),
-          child:BackdropFilter(
-            filter:ImageFilter.blur(sigmaX:16,sigmaY:16),
-            child:Container(
-              width:double.infinity,
-              height:height,
-              constraints:BoxConstraints(
-                maxHeight:MediaQuery.sizeOf(ctx).height*.90),
-              padding:const EdgeInsets.fromLTRB(21,13,21,25),
-              color:Colors.white.withValues(alpha:.94),
-              child:Column(mainAxisSize:MainAxisSize.min,children:[
-                Container(width:32,height:4,
-                  decoration:BoxDecoration(
-                    color:KColors.ink.withValues(alpha:.11),
-                    borderRadius:BorderRadius.circular(9))),
-                const SizedBox(height:22),
-                Flexible(child:content),
-              ]),
+    showGeneralDialog<T>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Dismiss',
+      barrierColor: const Color(0x62000000),
+      transitionDuration: kakaReduceMotion(context)
+          ? const Duration(milliseconds: 150)
+          : KakaMotion.sheet,
+      pageBuilder: (ctx, a, b) => Align(
+        alignment: Alignment.bottomCenter,
+        child: Material(
+          type: MaterialType.transparency,
+          child: SafeArea(
+            top: false,
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(KRadius.sheet),
+              ),
+              child: Container(
+                width: double.infinity,
+                height: height,
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(ctx).height * .90,
+                ),
+                padding: const EdgeInsets.fromLTRB(21, 13, 21, 25),
+                color: Colors.white.withValues(alpha: .98),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: KColors.ink.withValues(alpha: .11),
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                    ),
+                    const SizedBox(height: 22),
+                    Flexible(child: content),
+                  ],
+                ),
+              ),
             ),
           ),
-        )),
-      ),
-    ),
-    transitionBuilder:(ctx,animation,secondary,child){
-      if(kakaReduceMotion(ctx))return FadeTransition(
-        opacity:animation,child:child);
-      final value=CurvedAnimation(parent:animation,
-        curve:KakaMotion.arrive,reverseCurve:KakaMotion.depart);
-      return FadeTransition(
-        opacity:Tween<double>(begin:.42,end:1).animate(value),
-        child:SlideTransition(
-          position:Tween<Offset>(
-            begin:const Offset(0,.22),end:Offset.zero).animate(value),
-          child:ScaleTransition(
-            scale:Tween<double>(begin:.975,end:1).animate(value),
-            alignment:Alignment.bottomCenter,
-            child:child,
-          ),
         ),
-      );
-    },
-  );
+      ),
+      transitionBuilder: (ctx, animation, secondary, child) {
+        if (kakaReduceMotion(ctx)) {
+          return FadeTransition(opacity: animation, child: child);
+        }
+        final eased = CurvedAnimation(
+          parent: animation,
+          curve: KakaMotion.arrive,
+          reverseCurve: KakaMotion.depart,
+        );
+        return FadeTransition(
+          opacity: Tween<double>(begin: .72, end: 1).animate(eased),
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, .09),
+              end: Offset.zero,
+            ).animate(eased),
+            child: child,
+          ),
+        );
+      },
+    );
 
 /// Lightweight animated notice; removes its OverlayEntry and ticker on exit.
 void kakaNotice(BuildContext context,String message) {
