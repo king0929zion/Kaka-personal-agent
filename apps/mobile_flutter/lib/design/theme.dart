@@ -1,20 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'motion.dart';
 
 abstract final class KColors {
-  static const bg = Color(0xFFFAFAFA);
+  static const bg = Color(0xFFF7F7F6);
   static const surface = Color(0xFFFFFFFF);
-  static const soft = Color(0xFFF1F1F1);
+  static const soft = Color(0xFFF0F0EF);
   static const ink = Color(0xFF161616);
   static const muted = Color(0xFF858585);
-  static const line = Color(0xFFEBEBEB);
+  static const line = Color(0xFFE7E7E5);
   static const error = Color(0xFFC74141);
 }
 
 abstract final class KRadius {
-  static const card = 28.0;
-  static const sheet = 34.0;
-  static const button = 26.0;
+  static const card = 30.0;
+  static const sheet = 40.0;
+  static const button = 28.0;
 }
 
 ThemeData kakaTheme() => ThemeData(
@@ -22,6 +23,14 @@ ThemeData kakaTheme() => ThemeData(
   scaffoldBackgroundColor: KColors.bg,
   canvasColor: KColors.bg,
   splashColor: Colors.transparent,
+  dividerColor: Colors.transparent,
+  focusColor: Colors.transparent,
+  hoverColor: Colors.transparent,
+  shadowColor: Colors.transparent,
+  dialogBackgroundColor: KColors.surface,
+  cardColor: KColors.surface,
+  listTileTheme: const ListTileThemeData(contentPadding: EdgeInsets.zero),
+  visualDensity: VisualDensity.standard,
   highlightColor: Colors.transparent,
   fontFamily: 'Roboto',
   colorScheme: const ColorScheme.light(
@@ -40,7 +49,8 @@ ThemeData kakaTheme() => ThemeData(
     bodySmall: TextStyle(fontSize: 12, color: KColors.muted),
   ),
   pageTransitionsTheme: const PageTransitionsTheme(builders: {
-    TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
+    TargetPlatform.android: KakaPageTransitionsBuilder(),
+    TargetPlatform.iOS: KakaPageTransitionsBuilder(),
   }),
 );
 

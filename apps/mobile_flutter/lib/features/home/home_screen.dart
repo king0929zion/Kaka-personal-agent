@@ -4,6 +4,7 @@ import '../../app/app_controller.dart';
 import '../../core/models.dart';
 import '../../core/performance_prefs.dart';
 import '../../design/theme.dart';
+import '../../design/motion.dart';
 import '../../design/widgets.dart';
 import '../avatar/organic_avatar.dart';
 import '../avatar/avatar_settings.dart';
@@ -38,13 +39,9 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() { query.dispose(); super.dispose(); }
 
   void open(KakaBot bot) => Navigator.of(context).push(
-    PageRouteBuilder<void>(
-      pageBuilder: (context,a,b) => ThreadScreen(api: widget.app.api, bot:bot),
-      transitionsBuilder: (context,a,b,child) => FadeTransition(
-        opacity: CurvedAnimation(parent:a,curve:Curves.easeOut),child:child),
-      transitionDuration: const Duration(milliseconds: 250),
-    ),
-  ).then((_) => widget.app.refresh());
+    KakaRoute<void>(builder:(context)=>ThreadScreen(
+      api:widget.app.api,bot:bot)),
+  ).then((_)=>widget.app.refresh());
 
   void openGroup(KakaGroup group) {
     final presentation = KakaBot(id:group.id,name:group.name,title:'Group chat',
@@ -205,13 +202,17 @@ class _HomeScreenState extends State<HomeScreen> {
               ])),
             if(tab!=2) Padding(padding:const EdgeInsets.fromLTRB(22,0,22,14),
               child:Row(children:[
-                GestureDetector(onTap:selectSpace,child:Row(children:[
+                KakaPress(onTap:selectSpace,child:Container(
+                  padding:const EdgeInsets.symmetric(horizontal:13,vertical:9),
+                  decoration:BoxDecoration(color:KColors.soft,
+                    borderRadius:BorderRadius.circular(24)),
+                  child:Row(mainAxisSize:MainAxisSize.min,children:[
                   Text(widget.app.spaces.where((s)=>s.id==widget.app.api.spaceId)
                     .map((s)=>s.name).firstOrNull ?? 'Personal space',
                     style:const TextStyle(fontSize:14,fontWeight:FontWeight.w600,color:KColors.ink)),
                   const SizedBox(width:5),
                   const Icon(LucideIcons.chevronDown,size:16,color:KColors.muted),
-                ])),
+                ]))),
                 const Spacer(),
                 if(widget.app.busy) const SizedBox(width:14,height:14,
                   child:CircularProgressIndicator(strokeWidth:1.6,color:KColors.ink)),
@@ -222,9 +223,25 @@ class _HomeScreenState extends State<HomeScreen> {
                   hintText:'Search agents',filled:true,fillColor:KColors.soft,
                   border:OutlineInputBorder(borderRadius:BorderRadius.circular(23),
                     borderSide:BorderSide.none)))),
-            Expanded(child:tab==2?_settings():_list(tab)),
+            Expanded(child:AnimatedSwitcher(
+              duration:kakaReduceMotion(context)
+                ?Duration.zero:KakaMotion.standard,
+              switchInCurve:KakaMotion.arrive,
+              switchOutCurve:KakaMotion.depart,
+              transitionBuilder:(child,animation)=>FadeTransition(
+                opacity:animation,
+                child:SlideTransition(
+                  position:Tween<Offset>(
+                    begin:const Offset(0,.016),
+                    end:Offset.zero).animate(animation),
+                  child:child)),
+              child:KeyedSubtree(key:ValueKey<int>(tab),
+                child:tab==2?_settings():_list(tab)),
+            )),
           ]),
-          Positioned(left:0,right:0,bottom:14,child:_bottomNav(tab)),
+          const Positioned(left:0,right:0,bottom:0,height:124,
+            child:KakaProgressiveBlur()),
+          Positioned(left:0,right:0,bottom:13,child:_bottomNav(tab)),
         ])),
       );
     });
@@ -298,8 +315,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _botTile(KakaBot bot, int tab) => Padding(
     key: ValueKey('agent-${bot.id}'),
-    padding: const EdgeInsets.only(bottom: 9),
-    child: GestureDetector(
+    padding: const EdgeInsets.only(bottom: 11),
+    child: KakaPress(
       onTap: () => open(bot),
       onLongPress: () => kakaSheet<void>(context, Column(
         mainAxisSize: MainAxisSize.min, children: [
@@ -325,9 +342,9 @@ class _HomeScreenState extends State<HomeScreen> {
           }),
         ])),
       child: Container(
-        padding: const EdgeInsets.all(15),
+        padding: const EdgeInsets.symmetric(vertical:17,horizontal:17),
         decoration: BoxDecoration(color: KColors.surface,
-          borderRadius: BorderRadius.circular(25)),
+          borderRadius: BorderRadius.circular(29)),
         child: Row(children: [
           AgentAvatar(botId: bot.id, size: 51, fallbackColor: _color(bot.color),
             working: ['running', 'leased', 'queued'].contains(bot.status)),
@@ -359,7 +376,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _groupTile(KakaGroup group) => Padding(
     key: ValueKey('group-${group.id}'),
     padding: const EdgeInsets.only(bottom: 9),
-    child: GestureDetector(
+    child: KakaPress(
       onTap: () => openGroup(group),
       onLongPress:()=>kakaSheet<void>(context,Column(
         mainAxisSize:MainAxisSize.min,children:[
@@ -373,9 +390,9 @@ class _HomeScreenState extends State<HomeScreen> {
           }),
         ])),
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(vertical:19,horizontal:19),
         decoration: BoxDecoration(color: KColors.surface,
-          borderRadius: BorderRadius.circular(25)),
+          borderRadius: BorderRadius.circular(29)),
         child: Row(children: [
           const Icon(LucideIcons.users, size: 24, color: KColors.ink),
           const SizedBox(width: 14),
@@ -386,30 +403,48 @@ class _HomeScreenState extends State<HomeScreen> {
     ));
 
   Widget _bottomNav(int tab) => Padding(
-    padding:const EdgeInsets.symmetric(horizontal:22),
+    padding:const EdgeInsets.symmetric(horizontal:21),
     child:Row(children:[
-      Expanded(child:Align(alignment:Alignment.centerLeft,child:Container(
-        height:66,padding:const EdgeInsets.all(7),
-        decoration:BoxDecoration(color:KColors.surface,
-          border:Border.all(color:KColors.line,width:.7),
-          borderRadius:BorderRadius.circular(38)),
-        child:Row(mainAxisSize:MainAxisSize.min,children:[
-          _navButton(0,LucideIcons.messageCircle,tab),
-          _navButton(1,LucideIcons.bot,tab),
-          _navButton(2,LucideIcons.settings2,tab),
-        ])))),
-      const SizedBox(width:14),
-      KakaIconButton(icon:LucideIcons.plus,size:64,filled:true,
-        onTap: tab==2?null:_newMenu),
+      KakaGlassSurface(radius:39,padding:const EdgeInsets.all(7),
+        sigma:17,child:SizedBox(width:162,height:52,
+          child:Stack(children:[
+            AnimatedPositioned(
+              duration:kakaReduceMotion(context)
+                ?Duration.zero:const Duration(milliseconds:390),
+              curve:KakaMotion.arrive,
+              left:54.0*tab,top:0,
+              child:Container(width:54,height:52,
+                decoration:BoxDecoration(
+                  color:KColors.ink,
+                  borderRadius:BorderRadius.circular(29))),
+            ),
+            Row(children:[
+              _navButton(0,LucideIcons.messageCircle,tab),
+              _navButton(1,LucideIcons.bot,tab),
+              _navButton(2,LucideIcons.settings2,tab),
+            ]),
+          ]),
+        ),
+      ),
+      const Spacer(),
+      KakaPress(onTap:tab==2?null:_newMenu,haptic:true,
+        child:Container(width:64,height:64,
+          alignment:Alignment.center,
+          decoration:const BoxDecoration(color:KColors.ink,
+            shape:BoxShape.circle),
+          child:Icon(tab==2?LucideIcons.settings2:LucideIcons.plus,
+            size:26,color:Colors.white.withValues(alpha:tab==2?.4:1)))),
     ]),
   );
   Widget _navButton(int index,IconData icon,int current) =>
-    GestureDetector(onTap:()=>widget.app.switchTab(index),
-      child:AnimatedContainer(duration:const Duration(milliseconds:210),
-        width:52,height:52,
-        decoration:BoxDecoration(color:index==current?KColors.ink:Colors.transparent,
-          borderRadius:BorderRadius.circular(30)),
-        child:Icon(icon,size:22,color:index==current?Colors.white:KColors.muted)));
+    KakaPress(onTap:()=>widget.app.switchTab(index),haptic:true,
+      child:SizedBox(width:54,height:52,
+        child:AnimatedOpacity(
+          opacity:index==current?1:.8,
+          duration:KakaMotion.quick,
+          child:Icon(icon,size:21,
+            color:index==current?Colors.white:KColors.ink)),
+      ));
 
   Widget _settings()=>ListView(padding:const EdgeInsets.fromLTRB(21,0,21,125),children:[
     const SizedBox(height:7),

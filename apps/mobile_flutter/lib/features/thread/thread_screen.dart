@@ -11,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/api.dart';
 import '../../core/models.dart';
 import '../../design/theme.dart';
+import '../../design/motion.dart';
 import '../../design/widgets.dart';
 import '../avatar/avatar_settings.dart';
 import '../avatar/avatar_editor.dart';
@@ -394,7 +395,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   Widget _message(KakaMessage message) {
     if(message.blocks.isEmpty)return const SizedBox.shrink();
     final user=message.role=='user';
-    return Padding(padding:const EdgeInsets.only(bottom:21),
+    return Padding(padding:const EdgeInsets.only(bottom:17),
       child:Row(crossAxisAlignment:CrossAxisAlignment.start,
         mainAxisAlignment:user?MainAxisAlignment.end:MainAxisAlignment.start,
         children:[
@@ -491,8 +492,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         margin:const EdgeInsets.symmetric(vertical:5),
         padding:const EdgeInsets.symmetric(horizontal:16,vertical:12),
         decoration:BoxDecoration(color:KColors.surface,
-          border:Border.all(color:KColors.line),
-          borderRadius:BorderRadius.circular(22)),
+          borderRadius:BorderRadius.circular(25)),
         child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
           for(final line in lines.whereType<Map>()) Padding(
             padding:const EdgeInsets.symmetric(vertical:6),
@@ -596,8 +596,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   Widget _blockCard(IconData icon,String title,String description) =>
     Container(margin:const EdgeInsets.symmetric(vertical:5),padding:const EdgeInsets.all(15),
       decoration:BoxDecoration(color:KColors.surface,
-        border:Border.all(color:KColors.line,width:.6),
-        borderRadius:BorderRadius.circular(23)),
+        borderRadius:BorderRadius.circular(26)),
       child:Row(mainAxisSize:MainAxisSize.min,children:[
         Icon(icon,size:18,color:KColors.ink),
         const SizedBox(width:11),
@@ -728,10 +727,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                     const Icon(LucideIcons.x,size:13,color:KColors.muted),
                   ])))),
           ])),
-        Container(
-        decoration:BoxDecoration(color:KColors.surface,
-          border:Border.all(color:KColors.line,width:.7),
-          borderRadius:BorderRadius.circular(30)),
+        KakaGlassSurface(
+        radius:32,sigma:16,
         padding:const EdgeInsets.fromLTRB(13,9,8,9),
         child:Row(crossAxisAlignment:CrossAxisAlignment.end,children:[
           KakaIconButton(icon:LucideIcons.plus,size:40,onTap:pickAttachment),

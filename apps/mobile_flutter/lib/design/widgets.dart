@@ -1,33 +1,51 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
+import 'package:flutter/services.dart';
+import 'motion.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'theme.dart';
 
-/// Fast, self-drawn press feedback without Material ink/splash effects.
-class _KakaPress extends StatefulWidget {
+/// A velocity-aware press spring shared by all custom controls.
+class KakaPress extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
-  const _KakaPress({required this.child,this.onTap});
+  final VoidCallback? onLongPress;
+  final bool haptic;
+  const KakaPress({super.key,required this.child,this.onTap,
+    this.onLongPress,this.haptic=false});
   @override
-  State<_KakaPress> createState()=>_KakaPressState();
+  State<KakaPress> createState()=>_KakaPressState();
 }
-class _KakaPressState extends State<_KakaPress> {
-  bool pressed=false;
-  void _setPressed(bool value){
-    if(widget.onTap==null||pressed==value)return;
-    setState(()=>pressed=value);
+class _KakaPressState extends State<KakaPress>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _scale=AnimationController.unbounded(
+    vsync:this,value:1);
+  void _press(bool down) {
+    if(widget.onTap==null && widget.onLongPress==null)return;
+    if(kakaReduceMotion(context)) {
+      _scale.value=1;
+      return;
+    }
+    _scale.animateWith(SpringSimulation(
+      KakaMotion.pressSpring,_scale.value,down?.963:1,0));
   }
+  @override
+  void dispose(){_scale.dispose();super.dispose();}
   @override
   Widget build(BuildContext context)=>GestureDetector(
     behavior:HitTestBehavior.opaque,
-    onTap:widget.onTap,
-    onTapDown:widget.onTap==null?null:(_)=>_setPressed(true),
-    onTapUp:widget.onTap==null?null:(_)=>_setPressed(false),
-    onTapCancel:()=>_setPressed(false),
-    child:AnimatedScale(
-      scale:pressed ? .965 : 1,
-      duration:const Duration(milliseconds:130),
-      curve:Curves.easeOutCubic,
-      child:widget.child),
+    onTap:widget.onTap==null?null:(){
+      if(widget.haptic)HapticFeedback.selectionClick();
+      widget.onTap!();
+    },
+    onLongPress:widget.onLongPress,
+    onTapDown:(_)=>_press(true),
+    onTapUp:(_)=>_press(false),
+    onTapCancel:()=>_press(false),
+    child:AnimatedBuilder(animation:_scale,child:widget.child,
+      builder:(context,child)=>Transform.scale(
+        scale:_scale.value,child:child)),
   );
 }
 
@@ -42,7 +60,7 @@ class KakaIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context)=>Semantics(
     button:true,enabled:onTap!=null,label:tooltip,
-    child:_KakaPress(onTap:onTap,child:AnimatedOpacity(
+    child:KakaPress(onTap:onTap,haptic:true,child:AnimatedOpacity(
       duration:const Duration(milliseconds:140),
       opacity:onTap==null ? .45 : 1,
       child:Container(
@@ -67,7 +85,7 @@ class KakaButton extends StatelessWidget {
   @override
   Widget build(BuildContext context)=>Semantics(
     button:true,enabled:onPressed!=null&&!busy,label:title,
-    child:_KakaPress(onTap:busy?null:onPressed,child:AnimatedOpacity(
+    child:KakaPress(onTap:busy?null:onPressed,haptic:true,child:AnimatedOpacity(
       duration:const Duration(milliseconds:140),
       opacity:onPressed==null||busy ? .55 : 1,
       child:Container(
@@ -126,15 +144,15 @@ class KakaSwitch extends StatelessWidget {
     onTap:onChanged==null?null:()=>onChanged!(!value),
     child:GestureDetector(onTap:onChanged==null?null:()=>onChanged!(!value),
       child:AnimatedContainer(
-        duration:const Duration(milliseconds:220),
-        curve:Curves.easeOutCubic,
+        duration:KakaMotion.standard,
+        curve:KakaMotion.arrive,
         width:52,height:32,padding:const EdgeInsets.all(4),
         decoration:BoxDecoration(
           color:value?KColors.ink:KColors.line,
           borderRadius:BorderRadius.circular(20)),
         child:AnimatedAlign(
-          duration:const Duration(milliseconds:220),
-          curve:Curves.easeOutCubic,
+          duration:KakaMotion.standard,
+          curve:KakaMotion.arrive,
           alignment:value?Alignment.centerRight:Alignment.centerLeft,
           child:Container(width:24,height:24,
             decoration:const BoxDecoration(color:Colors.white,shape:BoxShape.circle)),
@@ -167,55 +185,87 @@ class KakaRow extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onTap;
   final Widget? trailing;
-  const KakaRow({super.key, required this.title, this.subtitle, required this.icon, this.onTap, this.trailing});
+  const KakaRow({super.key,required this.title,this.subtitle,
+    required this.icon,this.onTap,this.trailing});
   @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap, behavior: HitTestBehavior.opaque,
-    child: Padding(padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 17),
-      child: Row(children: [
-        Icon(icon, size: 20, color: KColors.ink),
-        const SizedBox(width: 14),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, style: const TextStyle(fontSize: 15, color: KColors.ink)),
-          if (subtitle != null) Padding(padding: const EdgeInsets.only(top: 3),
-            child: Text(subtitle!, style: const TextStyle(fontSize: 12, color: KColors.muted))),
+  Widget build(BuildContext context) => KakaPress(onTap:onTap,
+    child:Padding(
+      padding:const EdgeInsets.symmetric(vertical:12,horizontal:14),
+      child:Row(children:[
+        Container(width:42,height:42,alignment:Alignment.center,
+          decoration:BoxDecoration(color:KColors.soft,
+            borderRadius:BorderRadius.circular(16)),
+          child:Icon(icon,size:19,color:KColors.ink)),
+        const SizedBox(width:13),
+        Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Text(title,style:const TextStyle(fontSize:14.5,
+            fontWeight:FontWeight.w500,color:KColors.ink)),
+          if(subtitle!=null)Padding(padding:const EdgeInsets.only(top:4),
+            child:Text(subtitle!,maxLines:2,overflow:TextOverflow.ellipsis,
+              style:const TextStyle(fontSize:12,color:KColors.muted,height:1.35))),
         ])),
-        trailing ?? const Icon(LucideIcons.chevronRight, size: 18, color: KColors.muted),
-      ])),
+        const SizedBox(width:8),
+        trailing ?? Icon(LucideIcons.chevronRight,
+          size:17,color:KColors.muted.withValues(alpha:.75)),
+      ]),
+    ),
   );
 }
 
-/// Custom in-app sheet; does not use platform menus or native dialogs.
+/// Custom, spring-like bottom sheet with blur and no Material surface border.
 Future<T?> kakaSheet<T>(BuildContext context, Widget content, {double? height}) =>
   showGeneralDialog<T>(
-    context: context,
-    barrierDismissible: true,
-    barrierLabel: 'Dismiss',
-    barrierColor: const Color(0x55000000),
-    transitionDuration: const Duration(milliseconds: 260),
-    pageBuilder: (ctx, a, b) => Align(alignment: Alignment.bottomCenter,
-      child: Material(type: MaterialType.transparency,
-        child: SafeArea(top: false,
-          child: Container(
-            width: double.infinity,
-            height: height,
-            constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(ctx).height * .90),
-            padding: const EdgeInsets.fromLTRB(20, 13, 20, 24),
-            decoration: const BoxDecoration(color: KColors.surface,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(KRadius.sheet))),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Container(width: 34, height: 4,
-                decoration: BoxDecoration(color: KColors.line, borderRadius: BorderRadius.circular(8))),
-              const SizedBox(height: 20),
-              Flexible(child: content),
-            ]),
+    context:context,
+    barrierDismissible:true,
+    barrierLabel:'Dismiss',
+    barrierColor:const Color(0x62000000),
+    transitionDuration:kakaReduceMotion(context)
+      ?const Duration(milliseconds:150):KakaMotion.sheet,
+    pageBuilder:(ctx,a,b)=>Align(alignment:Alignment.bottomCenter,
+      child:Material(type:MaterialType.transparency,
+        child:SafeArea(top:false,child:ClipRRect(
+          borderRadius:const BorderRadius.vertical(
+            top:Radius.circular(KRadius.sheet)),
+          child:BackdropFilter(
+            filter:ImageFilter.blur(sigmaX:16,sigmaY:16),
+            child:Container(
+              width:double.infinity,
+              height:height,
+              constraints:BoxConstraints(
+                maxHeight:MediaQuery.sizeOf(ctx).height*.90),
+              padding:const EdgeInsets.fromLTRB(21,13,21,25),
+              color:Colors.white.withValues(alpha:.94),
+              child:Column(mainAxisSize:MainAxisSize.min,children:[
+                Container(width:32,height:4,
+                  decoration:BoxDecoration(
+                    color:KColors.ink.withValues(alpha:.11),
+                    borderRadius:BorderRadius.circular(9))),
+                const SizedBox(height:22),
+                Flexible(child:content),
+              ]),
+            ),
           ),
-        ),
+        )),
       ),
     ),
-    transitionBuilder: (ctx, animation, secondary, child) =>
-      SlideTransition(position: Tween(begin: const Offset(0, 1), end: Offset.zero)
-        .animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)), child: child),
+    transitionBuilder:(ctx,animation,secondary,child){
+      if(kakaReduceMotion(ctx))return FadeTransition(
+        opacity:animation,child:child);
+      final value=CurvedAnimation(parent:animation,
+        curve:KakaMotion.arrive,reverseCurve:KakaMotion.depart);
+      return FadeTransition(
+        opacity:Tween<double>(begin:.42,end:1).animate(value),
+        child:SlideTransition(
+          position:Tween<Offset>(
+            begin:const Offset(0,.22),end:Offset.zero).animate(value),
+          child:ScaleTransition(
+            scale:Tween<double>(begin:.975,end:1).animate(value),
+            alignment:Alignment.bottomCenter,
+            child:child,
+          ),
+        ),
+      );
+    },
   );
 
 void kakaNotice(BuildContext context, String message) {
