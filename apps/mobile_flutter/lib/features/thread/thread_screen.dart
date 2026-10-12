@@ -299,7 +299,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     }
   }
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => KakaDepthStage(child:Scaffold(
     backgroundColor:KColors.bg,
     resizeToAvoidBottomInset:true,
     body:SafeArea(child:Column(children:[
@@ -371,7 +371,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
               style:const TextStyle(fontSize:12,color:KColors.error)))),
       _composer(),
     ])),
-  );
+  ));
 
   Color _botColor() {
     try {
