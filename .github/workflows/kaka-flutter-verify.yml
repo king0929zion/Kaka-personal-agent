@@ -57,15 +57,19 @@ jobs:
         working-directory: apps/mobile_flutter
         run: flutter test
 
-      - name: Android ARM64 release
+      - name: Android ARM64 release-mode CI test (NOT upgradeable)
         working-directory: apps/mobile_flutter
+        env:
+          # Only CI verification may use the ephemeral runner debug signature.
+          # Distributable Release builds use the separate signed workflow.
+          KAKA_ALLOW_DEBUG_RELEASE_SIGNING: '1'
         run: flutter build apk --release --target-platform android-arm64
 
-      - name: Upload installable ARM64 APK
+      - name: Upload ARM64 CI TEST APK (not a stable signature)
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: kaka-flutter-arm64-release
+          name: kaka-flutter-arm64-ci-test-EPHEMERAL-SIGNATURE
           path: apps/mobile_flutter/build/app/outputs/flutter-apk/app-release.apk
           retention-days: 7
           if-no-files-found: error

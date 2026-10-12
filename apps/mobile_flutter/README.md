@@ -33,8 +33,23 @@ The client speaks the existing server's oRPC POST JSON envelopes, password login
 
 See `docs/FLUTTER_MIGRATION.md` for release blockers.
 
-## Performance testing APK
+## Fixed Android release signing
 
-The CI workflow now publishes **release-mode, per-ABI APKs** separately from the large debug APK. For normal Android ARM64 devices, install `app-arm64-v8a-release.apk`, not `app-debug.apk`. Profile/release mode removes Flutter debug instrumentation and is the correct build for UI smoothness and memory comparisons.
+Kaka now supports a permanent RSA-4096 Android release signing identity
+(`kaka-release`). **A release signed by a temporary CI runner's debug key
+cannot be installed over another build with a different certificate.**
 
-These are **testing artifacts**, not Play Store releases. Without a configured production signing key the generated Android template uses a developer debug key for signing; keys can differ across CI runners. You may need to uninstall a previous test build before installing a newer one; back up local data first. Production updates require stable release signing and an explicit migration plan.
+- Normal pull-request CI publishes a **test-only** release-mode APK, clearly
+  marked `EPHEMERAL-SIGNATURE`; do not distribute it as a stable update.
+- The manual **Kaka Android stable signed Release** GitHub Actions workflow
+  uses the same fixed keystore on every run. It verifies the public
+  signing-certificate SHA-256 and APK Signature Scheme v2 before publishing
+  the signed APK.
+- Set the three encrypted GitHub Actions repository secrets from your private
+  `Kaka-Android-Signing-Kit.zip` before running this workflow. Never commit
+  the JKS or passwords.
+- Release builds without stable signing credentials are rejected unless the
+  explicitly test-only `KAKA_ALLOW_DEBUG_RELEASE_SIGNING=1` override is used.
+
+See **[ANDROID_RELEASE_SIGNING.md](docs/ANDROID_RELEASE_SIGNING.md)** for
+step-by-step setup, local builds, certificate fingerprint, and upgrade rules.

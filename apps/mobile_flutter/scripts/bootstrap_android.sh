@@ -39,5 +39,8 @@ icon.write_text('''<?xml version="1.0" encoding="utf-8"?>
     android:pathData="M65,38 C68,38 69,40 69,44 L69,64 C69,68 66,70 63,68 C62,67 62,65 62,64 L62,44 C62,40 63,38 65,38Z" />
 </vector>''')
 PY
+# Flutter regenerates native files. Re-apply the stable signing configuration
+# on every bootstrap so release builds never silently use a new debug key.
+python3 scripts/configure_release_signing.py
 flutter pub get
 echo "Android Flutter embedding generated. Run flutter run or flutter build apk."
