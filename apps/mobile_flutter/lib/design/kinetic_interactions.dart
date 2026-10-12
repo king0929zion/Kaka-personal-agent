@@ -123,7 +123,7 @@ class _KakaPullToRefreshState extends State<KakaPullToRefresh>
   Widget build(BuildContext context) => NotificationListener<ScrollNotification>(
     onNotification: _notification,
     child: AnimatedBuilder(
-      animation: Listenable.merge([_offset, _spinner]),
+      animation: _offset,
       child: widget.child,
       builder: (context, child) {
         final distance = _offset.value.clamp(0.0, 190.0);
@@ -139,11 +139,11 @@ class _KakaPullToRefreshState extends State<KakaPullToRefresh>
                     opacity: (distance / 40).clamp(0.0, 1.0),
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
                       if (_refreshing)
-                        Transform.rotate(
-                          angle: _spinner.value * math.pi * 2,
+                        RepaintBoundary(child:RotationTransition(
+                          turns: _spinner,
                           child: const Icon(LucideIcons.loaderCircle,
                               size: 22, color: KColors.ink),
-                        )
+                        ))
                       else
                         Transform.rotate(
                           angle: math.min(distance / trigger, 1) * math.pi,
@@ -247,29 +247,21 @@ class _KakaLiquidNavState extends State<KakaLiquidNav>
       ),
       child: LayoutBuilder(builder: (context, constraints) {
         final count = widget.labels.length;
-        final cell = constraints.maxWidth / count;
         return Stack(children: [
-          AnimatedBuilder(
-            animation: Listenable.merge([_left, _right]),
-            builder: (context, child) {
-              final x1 = _left.value.clamp(0.0, count.toDouble()) * cell;
-              final x2 = _right.value.clamp(0.0, count.toDouble()) * cell;
-              final distance = (x2 - x1).abs();
-              final compressed = math.min(6.0,
-                  math.max(0, distance - cell) * .12);
-              return Positioned(
-                left: math.min(x1, x2),
-                top: compressed / 2,
-                width: math.max(cell * .78, distance),
-                height: constraints.maxHeight - compressed,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: KColors.ink,
-                    borderRadius: BorderRadius.circular(32),
+          // Paint-only physics: the pill no longer changes Stack layout
+          // or rebuilds any of the four tab hit targets on each spring tick.
+          Positioned.fill(
+            child: IgnorePointer(
+              child: RepaintBoundary(
+                child: CustomPaint(
+                  painter: _KakaLiquidPillPainter(
+                    left: _left,
+                    right: _right,
+                    count: count,
                   ),
                 ),
-              );
-            },
+              ),
+            ),
           ),
           Row(children: [
             for (var i = 0; i < count; i++)
@@ -296,6 +288,45 @@ class _KakaLiquidNavState extends State<KakaLiquidNav>
   }
 }
 
+/// Only the tiny selected capsule repaints as it moves. Text/icons remain
+/// a separate static hit-test tree.
+class _KakaLiquidPillPainter extends CustomPainter {
+  final Animation<double> left;
+  final Animation<double> right;
+  final int count;
+  _KakaLiquidPillPainter({
+    required this.left,
+    required this.right,
+    required this.count,
+  }) : super(repaint: Listenable.merge([left, right]));
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (count == 0 || size.isEmpty) return;
+    final cell = size.width / count;
+    final x1 = left.value.clamp(0.0, count.toDouble()) * cell;
+    final x2 = right.value.clamp(0.0, count.toDouble()) * cell;
+    final travel = (x2 - x1).abs();
+    final flatten = math.min(5.0, math.max(0.0, travel - cell) * .10);
+    final rect = Rect.fromLTWH(
+      math.min(x1, x2),
+      flatten / 2,
+      math.max(cell * .78, travel),
+      size.height - flatten,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, const Radius.circular(32)),
+      Paint()..color = KColors.ink,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _KakaLiquidPillPainter oldDelegate) =>
+      oldDelegate.left != left ||
+      oldDelegate.right != right ||
+      oldDelegate.count != count;
+}
+
 class _KakaNavGlyph extends StatelessWidget {
   final bool selected;
   final IconData icon;
@@ -308,34 +339,38 @@ class _KakaNavGlyph extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => TweenAnimationBuilder<double>(
-    key: ValueKey(selected),
-    tween: Tween<double>(begin: selected ? .78 : 1, end: 1),
+    tween: Tween<double>(end: selected ? 1 : 0),
     duration: kakaReduceMotion(context)
-        ? Duration.zero : const Duration(milliseconds: 400),
-    curve: Curves.elasticOut,
-    builder: (context, scale, child) =>
-      Transform.scale(scale: scale, child: child),
-    child: AnimatedDefaultTextStyle(
-      duration: kakaReduceMotion(context)
-          ? Duration.zero : const Duration(milliseconds: 280),
-      style: TextStyle(
-        fontSize: 10,
-        fontWeight: FontWeight.w600,
-        color: selected ? Colors.white : KColors.muted,
-      ),
-      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        TweenAnimationBuilder<Color?>(
-          tween: ColorTween(
-            begin: selected ? KColors.ink : Colors.white,
-            end: selected ? Colors.white : KColors.ink),
-          duration: kakaReduceMotion(context)
-              ? Duration.zero : const Duration(milliseconds: 280),
-          builder:(context,color,_)=>Icon(icon,size:20,color:color),
+        ? Duration.zero : const Duration(milliseconds: 340),
+    curve: Curves.easeOutBack,
+    builder: (context, position, child) {
+      final t = position.clamp(0.0, 1.0);
+      // The incoming icon briefly contracts, then settles with a tiny spring
+      // bump; label and glyph colors share one continuous tween.
+      final scale = selected ? (.84 + position * .16) : (1 + .04 * position);
+      final foreground = Color.lerp(KColors.ink, Colors.white, t)!;
+      final caption = Color.lerp(KColors.muted, Colors.white, t)!;
+      return Transform.scale(
+        scale: scale,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 20, color: foreground),
+            const SizedBox(height: 3),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: caption,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 3),
-        Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-      ]),
-    ),
+      );
+    },
   );
 }
 
@@ -357,7 +392,7 @@ class _KakaTabEntranceState extends State<KakaTabEntrance>
     with SingleTickerProviderStateMixin {
   late final AnimationController _arrival = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 400),
+    duration: const Duration(milliseconds: 320),
   )..forward();
 
   @override
@@ -379,9 +414,10 @@ class _KakaTabEntranceState extends State<KakaTabEntrance>
       builder: (context, child) {
         final t = animation.value;
         return Opacity(
-          opacity: (.28 + t * .72).clamp(0, 1),
+          // Delicate entrance, not a full-page fade-out that makes text flash.
+          opacity: (.88 + t * .12).clamp(0.0, 1.0),
           child: Transform.translate(
-            offset: Offset((1 - t) * 22 * widget.direction, 0),
+            offset: Offset((1 - t) * 12 * widget.direction, 0),
             child: child,
           ),
         );

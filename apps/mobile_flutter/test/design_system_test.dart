@@ -28,13 +28,16 @@ void main(){
     expect(longPresses,1);
   });
 
-  testWidgets('glass surfaces are clipped, with a backdrop filter',(tester)async{
+  testWidgets('flat floating surfaces do not allocate backdrop glass layers',
+      (tester)async{
     await tester.pumpWidget(const MaterialApp(home:Scaffold(body:Center(
       child:SizedBox(width:200,height:70,
         child:KakaGlassSurface(child:Text('Navigation'))),
     ))));
-    expect(find.byType(ClipRRect),findsWidgets);
-    expect(find.byType(BackdropFilter),findsOneWidget);
+    expect(find.byType(BackdropFilter),findsNothing);
+    expect(find.byType(ImageFiltered),findsNothing);
+    expect(find.byType(ClipRRect),findsNothing);
+    expect(find.text('Navigation'),findsOneWidget);
   });
 
   testWidgets('progressive blur downgrades under reduced motion',(tester)async{

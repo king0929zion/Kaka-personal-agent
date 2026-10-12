@@ -270,8 +270,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 _list(tab),
             )),
           ]),
-          const Positioned(left:0,right:0,bottom:0,height:124,
-            child:KakaProgressiveBlur()),
+          // Only feather the 9dp region above the 79dp floating navigation
+          // footprint. Never blur the full chat list underneath it.
+          const Positioned(left:0,right:0,bottom:0,height:88,
+            child:KakaProgressiveBlur(height:88)),
           Positioned(left:0,right:0,bottom:13,child:_bottomNav(tab)),
         ])),
       ));
@@ -301,7 +303,7 @@ class _HomeScreenState extends State<HomeScreen> {
       key:PageStorageKey('kaka-home-list-$tab'),
       controller:tab==1?_agentsScroll:_chatsScroll,
       addAutomaticKeepAlives: false,
-      padding: const EdgeInsets.fromLTRB(KLayout.pageGutter, 0, KLayout.pageGutter, 125),
+      padding: const EdgeInsets.fromLTRB(KLayout.pageGutter, 0, KLayout.pageGutter, 98),
       physics:const AlwaysScrollableScrollPhysics(parent:ClampingScrollPhysics()),
       itemCount: count + (_refreshAnnouncement==null?0:1),
       itemBuilder: (context, index) {
@@ -485,7 +487,7 @@ class _HomeScreenState extends State<HomeScreen> {
     ),
   );
 
-  Widget _settings()=>KakaContentWidth(child:ListView(padding:const EdgeInsets.fromLTRB(KLayout.pageGutter,0,KLayout.pageGutter,125),children:[
+  Widget _settings()=>KakaContentWidth(child:ListView(padding:const EdgeInsets.fromLTRB(KLayout.pageGutter,0,KLayout.pageGutter,98),children:[
     const SizedBox(height:7),
     KakaSection(title:'ACCOUNT',child:Column(children:[
       KakaRow(title:'Personal account',icon:LucideIcons.user,
