@@ -433,7 +433,7 @@ class _HomeScreenState extends State<HomeScreen> {
           decoration:const BoxDecoration(color:KColors.ink,
             shape:BoxShape.circle),
           child:Icon(tab==2?LucideIcons.settings2:LucideIcons.plus,
-            size:26,color:Colors.white.withValues(alpha:tab==2?.4:1)))),
+            size:26,color:Colors.white.withValues(alpha:tab==2 ? .4 : 1)))),
     ]),
   );
   Widget _navButton(int index,IconData icon,int current) =>

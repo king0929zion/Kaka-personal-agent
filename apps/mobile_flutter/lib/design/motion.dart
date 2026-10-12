@@ -147,7 +147,7 @@ class KakaGlassSurface extends StatelessWidget {
         filter:ImageFilter.blur(sigmaX:low?0:sigma,sigmaY:low?0:sigma),
         child:DecoratedBox(
           decoration:BoxDecoration(
-            color:Colors.white.withValues(alpha:low?.94:.77)),
+            color:Colors.white.withValues(alpha:low ? .94 : .77)),
           child:Padding(padding:padding,child:child),
         ),
       ),

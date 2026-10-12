@@ -28,7 +28,7 @@ class _KakaPressState extends State<KakaPress>
       return;
     }
     _scale.animateWith(SpringSimulation(
-      KakaMotion.pressSpring,_scale.value,down?.963:1,0));
+      KakaMotion.pressSpring,_scale.value,down ? .963 : 1,0));
   }
   @override
   void dispose(){_scale.dispose();super.dispose();}

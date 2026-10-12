@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import '../../core/models.dart';
 import '../../design/theme.dart';
+import '../../design/motion.dart';
 import '../../design/widgets.dart';
 import 'organic_avatar.dart';
 import 'avatar_settings.dart';
@@ -68,12 +69,23 @@ class _AvatarEditorState extends State<AvatarEditor> {
         const SizedBox(height:13),
         Wrap(spacing:13,runSpacing:13,
           children:List.generate(OrganicPresets.colors.length,(i)=>
-            GestureDetector(onTap:()=>setState(()=>color=i),
-              child:Container(width:43,height:43,padding:const EdgeInsets.all(4),
-                decoration:BoxDecoration(shape:BoxShape.circle,
-                  border:Border.all(color:color==i?KColors.ink:Colors.transparent,width:2)),
-                child:DecoratedBox(decoration:BoxDecoration(shape:BoxShape.circle,
-                  color:OrganicPresets.colors[i])))))),
+            KakaPress(onTap:()=>setState(()=>color=i),haptic:true,
+              child:AnimatedScale(
+                scale:color==i?1:.87,
+                duration:KakaMotion.standard,
+                curve:KakaMotion.arrive,
+                child:Container(width:43,height:43,
+                  decoration:BoxDecoration(shape:BoxShape.circle,
+                    color:OrganicPresets.colors[i]),
+                  alignment:Alignment.center,
+                  child:AnimatedSwitcher(
+                    duration:KakaMotion.quick,
+                    child:color==i?Icon(LucideIcons.check,key:ValueKey(i),
+                      size:22,color:OrganicPresets.colors[i]
+                        .computeLuminance()>.5?Colors.black:Colors.white)
+                      :const SizedBox.shrink()),
+                ),
+              )))),
         const SizedBox(height:25),
         Text('Animation',style:Theme.of(context).textTheme.titleLarge),
         const SizedBox(height:12),
