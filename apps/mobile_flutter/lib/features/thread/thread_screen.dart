@@ -66,6 +66,9 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     // Pagination adds items BEFORE the viewport. Never interpret that as a
     // reason to follow the bottom; the offset restoration owns this frame.
     if (_loadingOlderHistory || thread.fetchingMore) return;
+    // A finger drag or fling owns the viewport. Do not let a token update
+    // cancel that scroll activity or pull the reader back to the bottom.
+    if (scroll.hasClients && scroll.position.isScrollingNotifier.value) return;
     if(!firstLoad && !wasNearBottom)return;
     // Multiple token events may arrive before layout. Schedule only one
     // correction and do not interrupt the viewport if it is already aligned.
