@@ -163,14 +163,22 @@ class ThreadController extends ChangeNotifier {
       await api.send(botId, text.trim(),group:group,artifactIds:uploaded,
         replyToMessageId:replyToMessageId,replyQuote:replyQuote);
       delivered=true;
-      // Refresh ensures optimistic/committed delivery agrees with server.
-      final next = await api.thread(botId,group:group);
-      if (_disposed) return;
-      final existing = snapshot?.messages ?? const <KakaMessage>[];
-      final combined = {for(final m in existing) m.id:m, for(final m in next.messages) m.id:m};
-      snapshot = KakaThread(threadId:next.threadId,
-        cursor:next.cursor, olderCursor:next.olderCursor,
-        runStatus:next.runStatus, messages:combined.values.toList());
+      // The server has accepted the message. A subsequent snapshot failure
+      // must not restore the composer and make users resend a duplicate.
+      try {
+        final next = await api.thread(botId,group:group);
+        if (_disposed) return;
+        final existing = snapshot?.messages ?? const <KakaMessage>[];
+        final combined = {
+          for (final m in existing) m.id:m,
+          for (final m in next.messages) m.id:m,
+        };
+        snapshot = KakaThread(threadId:next.threadId,
+          cursor:next.cursor,olderCursor:next.olderCursor,
+          runStatus:next.runStatus,messages:combined.values.toList());
+      } catch (_) {
+        // Live SSE will converge to the accepted server state.
+      }
     } catch (e) {
       error = e.toString();
       // Never delete artifacts after the server has accepted the message.

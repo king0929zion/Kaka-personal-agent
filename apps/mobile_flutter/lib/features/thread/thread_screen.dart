@@ -74,6 +74,24 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     thread.dispose(); draft.dispose(); scroll.dispose();
     super.dispose();
   }
+  Future<void> _olderPage() async {
+    if(!scroll.hasClients){
+      await thread.loadOlder();
+      return;
+    }
+    final oldMax=scroll.position.maxScrollExtent;
+    final oldPixels=scroll.position.pixels;
+    await thread.loadOlder();
+    WidgetsBinding.instance.addPostFrameCallback((_){
+      if(!mounted||!scroll.hasClients)return;
+      final delta=scroll.position.maxScrollExtent-oldMax;
+      if(delta>0){
+        scroll.jumpTo((oldPixels+delta).clamp(
+          scroll.position.minScrollExtent,scroll.position.maxScrollExtent));
+      }
+    });
+  }
+
   Future<void> send() async {
     final text = draft.text.trim();
     if (text.isEmpty && attachments.isEmpty) return;
@@ -249,7 +267,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                   return Column(children:[
                     if(thread.snapshot?.olderCursor!=null)
                       Padding(padding:const EdgeInsets.only(bottom:20),
-                        child:GestureDetector(onTap:thread.loadOlder,
+                        child:GestureDetector(onTap:_olderPage,
                           child:Text(thread.fetchingMore?'Loading…':'Load earlier messages',
                             style:const TextStyle(color:KColors.muted,fontSize:13)))),
                     if(thread.messages.isEmpty) Padding(padding:const EdgeInsets.only(top:90),
@@ -385,6 +403,15 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     );
   }
 
+  static final _markdownStyles=MarkdownStyleSheet(
+    p:const TextStyle(fontSize:15.5,height:1.54,color:KColors.ink),
+    code:const TextStyle(fontSize:13,color:KColors.ink,fontFamily:'monospace'),
+    codeblockDecoration:BoxDecoration(color:KColors.soft,
+      borderRadius:BorderRadius.circular(16)),
+    blockquoteDecoration:BoxDecoration(color:KColors.soft,
+      borderRadius:BorderRadius.circular(10)),
+  );
+
   Widget _renderBlock(KakaMessage message, Map<String,dynamic> block) {
     final kind='${block['kind'] ?? ''}';
     if(kind=='text') {
@@ -394,14 +421,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         child:MarkdownBody(
           data:text,
           selectable:true,
-          styleSheet:MarkdownStyleSheet(
-            p:const TextStyle(fontSize:15.5,height:1.54,color:KColors.ink),
-            code:const TextStyle(fontSize:13,color:KColors.ink,fontFamily:'monospace'),
-            codeblockDecoration:BoxDecoration(color:KColors.soft,
-              borderRadius:BorderRadius.circular(16)),
-            blockquoteDecoration:BoxDecoration(color:KColors.soft,
-              borderRadius:BorderRadius.circular(10)),
-          ),
+          styleSheet:_markdownStyles,
         ));
     }
     if(kind=='image'||kind=='file')return GestureDetector(
