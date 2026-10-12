@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import '../../app/app_controller.dart';
 import '../../core/models.dart';
+import '../../core/performance_prefs.dart';
 import '../../design/theme.dart';
 import '../../design/widgets.dart';
 import '../avatar/organic_avatar.dart';
@@ -391,6 +392,17 @@ class _HomeScreenState extends State<HomeScreen> {
     const SizedBox(height:20),
     KakaSection(title:'APP',child:Column(children:[
       const KakaRow(title:'Appearance',subtitle:'Minimal monochrome',icon:LucideIcons.palette),
+      ValueListenableBuilder<bool>(
+        valueListenable:PerformancePrefs.lowPower,
+        builder:(context,enabled,_)=>KakaRow(
+          title:'Low power mode',
+          subtitle:'Pause decorative motion and reduce media cache',
+          icon:LucideIcons.battery,
+          onTap:()=>PerformancePrefs.setLowPower(!enabled),
+          trailing:KakaSwitch(value:enabled,
+            onChanged:PerformancePrefs.setLowPower),
+        ),
+      ),
       const KakaRow(title:'About Kaka',subtitle:'Flutter preview 0.1',icon:LucideIcons.info),
       KakaRow(title:'Sign out',icon:LucideIcons.logOut,
         onTap:()=>widget.app.logout()),

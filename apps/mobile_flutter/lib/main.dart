@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 import 'app/app_controller.dart';
 import 'core/api.dart';
+import 'core/performance_prefs.dart';
 import 'design/theme.dart';
 import 'features/auth/auth_screen.dart';
 import 'features/home/home_screen.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Cap decoded image cache; uploaded pictures should not fill the process.
   PaintingBinding.instance.imageCache.maximumSizeBytes = 32 * 1024 * 1024;
   PaintingBinding.instance.imageCache.maximumSize = 80;
   configureSystemChrome();
+  await PerformancePrefs.restore();
   runApp(KakaApp(controller:AppController(KakaApi())..initialize()));
 }
 

@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../design/theme.dart';
+import '../../core/performance_prefs.dart';
 
 /// Shapes, palettes and expressions ported from the supplied BLOUB HTML.
 abstract final class OrganicPresets {
@@ -44,12 +45,18 @@ class _OrganicAvatarState extends State<OrganicAvatar>
 
   bool get _shouldAnimate =>
       _foreground && _tickerEnabled && !_reduceMotion &&
+      !PerformancePrefs.lowPower.value &&
       (widget.animate || widget.working || widget.size >= 110);
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    PerformancePrefs.lowPower.addListener(_onPerformanceChange);
+  }
+  void _onPerformanceChange() {
+    _updateTicker();
+    if (mounted) setState(() {});
   }
 
   @override
@@ -87,6 +94,7 @@ class _OrganicAvatarState extends State<OrganicAvatar>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    PerformancePrefs.lowPower.removeListener(_onPerformanceChange);
     _controller.dispose();
     super.dispose();
   }
