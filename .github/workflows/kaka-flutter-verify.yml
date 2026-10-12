@@ -1,0 +1,71 @@
+name: Kaka Flutter verification
+
+on:
+  pull_request:
+    paths:
+      - 'apps/mobile_flutter/**'
+      - '.github/workflows/kaka-flutter-verify.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/mobile_flutter/**'
+      - '.github/workflows/kaka-flutter-verify.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kaka-flutter-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flutter-android:
+    name: Flutter analyze, tests and release APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter SDK
+        run: flutter --version
+
+      - name: Generate Android embedding and resolve dependencies
+        working-directory: apps/mobile_flutter
+        run: bash scripts/bootstrap_android.sh
+
+      - name: Flutter analyze
+        working-directory: apps/mobile_flutter
+        run: flutter analyze
+
+      - name: Widget and unit tests
+        working-directory: apps/mobile_flutter
+        run: flutter test
+
+      - name: Android ARM64 release
+        working-directory: apps/mobile_flutter
+        run: flutter build apk --release --target-platform android-arm64
+
+      - name: Upload installable ARM64 APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kaka-flutter-arm64-release
+          path: apps/mobile_flutter/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7
+          if-no-files-found: error
